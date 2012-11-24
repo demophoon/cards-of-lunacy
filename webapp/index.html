@@ -44,6 +44,49 @@
         <script type="text/javascript" src="./js/jquery.tmpl.min.js"></script>
         <script type="text/javascript" src="./js/seedrandom.js"></script>
         <script>
+            // Connect to Web Socket Game Coordinator and Facilitator
+            var socket;
+            function startGame() {
+                try {
+                    var host = "ws://localhost:9876";
+                    socket = new WebSocket(host);
+                    message("Connecting...");
+                    socket.onopen = function() {
+                        message("Connected");
+                    }
+                    socket.onmessage = function(msg) {
+                        message(msg.data);
+                        data = JSON.parse(msg.data);
+                        switch (data.action) {
+                            case "register":
+                                clientId = data.clientId;
+                            break;
+                            case "playCard":
+                                drawCard(-1);
+                            break;
+                            case "sync":
+                            break;
+                            default:
+                                message("Unrecognized Command");
+                        }
+
+                    }
+                    socket.onclose = function() {
+                        message("Closed");
+                        setTimeout("init()",3000);
+                    }
+                } catch(exception) {
+                    message("Error Connecting: " + exception);
+                }
+            }
+
+            function message(msg) {
+                console.log(msg);
+            }
+
+
+        </script>
+        <script>
             var judgeCards = [];
             var playCards = [];
             var discard = [];
@@ -55,6 +98,7 @@
             var cardsPlayed = 0;
             var howMany = 0;
             var cardsInHand = 10;
+            var clientId;
 
             $(document).ready(function() {
                 Math.seedrandom(shuffleSeed);
@@ -70,10 +114,7 @@
                     success: function(data) {
                         judgeCards = data.black;
                         playCards = data.white;
-                        for (var x=0; x<cardsInHand; x+=1) {
-                            drawCard();
-                        }
-                        newJudgeCard();
+                        startGame()
                     },
                     error: function() {
                         console.log("Error!");
