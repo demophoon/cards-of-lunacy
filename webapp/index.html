@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+        <link href="./css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {
+                padding-top:60px;
+                background:url(./img/bg.gif);
+            }
+            .player-card {
+                background:url(./img/playerbg.gif);
+                color:#000;
+            }
+            .judge-card {
+                background:url(./img/judgebg.gif);
+                color:#fff;
+                margin:0px auto;
+            }
+            .card {
+                border:2px solid #333;
+                height:250px;
+                width:179px;
+                padding:10px;
+                font-weight:bold;
+                -webkit-border-radius: 10px;
+                -moz-border-radius: 10px;
+                -webkit-box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                -webkit-font-smoothing:subpixel-antialiased;
+                border-radius: 10px;
+            }
+            .mid {
+                text-align:center;
+            }
+            #discard div {
+                -webkit-box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                position:absolute;
+            }
+        </style>
+        <link href="./css/bootstrap-responsive.css" rel="stylesheet">
+        <script type="text/javascript" src="./js/jquery.js"></script>
+        <script type="text/javascript" src="./js/jquery.tmpl.min.js"></script>
+        <script type="text/javascript" src="./js/seedrandom.js"></script>
+        <script>
+            var judgeCards = [];
+            var playCards = [];
+            var discard = [];
+            var currentHand = [];
+            var awesomePoints = [];
+            var playerToken = Math.random()*100;
+            var shuffleSeed = Math.random();
+            var canPlay = false;
+            var cardsPlayed = 0;
+            var howMany = 0;
+            var cardsInHand = 10;
+
+            $(document).ready(function() {
+                Math.seedrandom(shuffleSeed);
+                loadCards();
+                $("#gameid").html("<a>Game Seed: " + shuffleSeed + "</a>");
+            });
+            function loadCards() {
+                $.ajax({
+                    type:"GET",
+                    url:"./cards.json",
+                    dataType:"json",
+                    timeout:25000,
+                    success: function(data) {
+                        judgeCards = data.black;
+                        playCards = data.white;
+                        for (var x=0; x<cardsInHand; x+=1) {
+                            drawCard();
+                        }
+                        newJudgeCard();
+                    },
+                    error: function() {
+                        console.log("Error!");
+                    }
+                });
+            }
+
+            function newJudgeCard() {
+                var nextCard = Math.ceil(Math.random()*judgeCards.length)-1;
+                $("#judge").html("");
+                $("#discard").html("");
+                canPlay = true;
+                cardsPlayed = 0;
+                howMany = judgeCards[nextCard].match(/_/g).length;
+                var cardinfo = {"text":judgeCards[nextCard].replace(/_/g,'____________________')};
+                $("#judgeCard").tmpl(cardinfo).appendTo("#judge");
+                console.log(cardinfo);
+                judgeCards.splice(nextCard,1);
+                discardCard();
+            }
+
+            function drawCard(inHand) {
+                if (inHand == undefined)
+                    inHand = true;
+                var nextCard = Math.ceil(Math.random()*playCards.length)-1;
+                if (inHand) {
+                    if (currentHand.length < cardsInHand) {
+                        currentHand.push(playCards[nextCard]);
+                        playCards.splice(nextCard,1);
+                    } else if (currentHand >= cardsInHand) {
+                        console.log("Hand is full.");
+                    }
+                } else {
+                    discard.push(playCards[nextCard]);
+                    playCards.splice(nextCard,1);
+                }
+                $('#playableCards').html("");
+                var disabled = "disabled";
+                if (canPlay)
+                    disabled = "";
+                for (var x=0; x<currentHand.length; x+=1) {
+                    if (currentHand[x] == undefined)
+                        disabled = "disabled"
+                    var cardInfo = {
+                        "rotate":0,
+                        "leftpad":0,
+                        "toppad":0,
+                        "text":currentHand[x],
+                        "type":"player",
+                        "cardNum":x,
+                        "disabled":disabled
+                    }
+                    $("#playerCard").tmpl(cardInfo).appendTo("#playableCards");
+                }
+
+            }
+            
+            function discardCard(index) {
+                if (index == undefined) {
+                    type = "judge";
+                } else {
+                    if (index >= 0 && index < cardsInHand) {
+                        cardsPlayed += 1;
+                        if (cardsPlayed >= howMany)
+                            canPlay = false;
+                        discard.push(currentHand[index]);
+                        
+                        // Send Card to Host
+                        
+                        currentHand.splice(index,1);
+                        
+                    }
+                    type = "player";
+                }
+                cardInfo = {
+                    "rotate":~~(rotationValue()*50-25),
+                    "leftpad":~~(rotationValue(12342142134)*100),
+                    "toppad":~~(rotationValue(5649813156)*40+25),
+                    "text":"Cards Against Humanity",
+                    "type":type
+                }
+                $("#discardCard").tmpl(cardInfo).appendTo("#discard");
+                drawCard();
+            }
+
+            function rotationValue(seed) {
+                if (seed == undefined)
+                    seed = 712323412;
+                return new Date()*seed%100000/100000;
+            }
+        </script>
+
+        <script id='playerCard' type="text/x-jquery-tmpl">
+            <button class="btn btn-large btn-block" type="button" ${disabled} onclick="discardCard(${cardNum})">${text}</button> 
+        </script>
+        
+        <script id='winnerCard' type="text/x-jquery-tmpl">
+            <div class="card player-card">
+                <b>${text}</b>
+            </div>
+        </script>
+
+        <script id='judgeCard' type="text/x-jquery-tmpl">
+            <div class="card judge-card">
+                <b>${text}</b>
+            </div>
+        </script>
+        
+        <script id='discardCard' type="text/x-jquery-tmpl">
+            <div class="card ${type}-card visible-desktop" style="margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:42px;line-height:115%;">
+                <b>Rotten Apples</b>
+            </div>
+        </script>
+    </head>
+    
+    <body>
+        <div class="navbar navbar-inverse navbar-fixed-top">
+            <div class="navbar-inner">
+                <div class="container">
+                    <a href="#" class="brand">Rotten Apples</a>
+                    <ul class="nav pull-right">
+                        <li>
+                            <a href="#">Help <i class="icon-question-sign icon-white"></i></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="span4">
+                <div id="judge"></div>
+                <div id="discard"></div>
+            </div>
+
+
+            <div class="span4">
+                <div id="playableCards"></div>
+            </div>
+
+            <div class="span3">
+                <div class="well">
+                    <h4>Leaderboard</h4>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Britt G.</td>
+                                <td>5</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="navbar navbar-inverse navbar-fixed-bottom">
+            <div class="navbar-inner">
+                <div class="container">
+                    <ul class="nav pull-right">
+                        <li>
+                            <a href="http://www.cardsagainsthumanity.com">Based off of <u>Cards Against Humanity(tm)</u></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
