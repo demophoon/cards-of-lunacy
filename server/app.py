@@ -119,6 +119,14 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     "clientName":"admin",
                 }), binary=False)
 
+            elif data['action'] == "newMessage":
+                for player in rooms[data['room']]['users']:
+                    self.factory.clients[player['id']].sendMessage(json.dumps({
+                        'action':'newMessage',
+                        'text':data['text'],
+                        'from':self.currentInfo['clientName'],
+                    }))
+                
             elif data['action'] == "sync":
                 None
                 # ToDo
@@ -219,16 +227,16 @@ class StatsBroadcaster(WebSocketServerFactory):
         for client in self.clients:
             client.sendMessage(msg)
 
-def generateUserId(l=8):
+def generateUserId(l=4):
     cid = ''.join(random.choice(string.letters + string.digits) for x in range(l))
     while cid in clients:
-        cid = generateUserId()
+        cid = generateUserId(l+1)
     return cid
 
-def generateRoomId(l=8):
+def generateRoomId(l=4):
     rid = ''.join(random.choice(string.letters + string.digits) for x in range(l))
     while rid in rooms:
-        rid = generateRoomId()
+        rid = generateRoomId(l+1)
     return rid
 
 if __name__ == '__main__':
