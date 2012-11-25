@@ -11,7 +11,11 @@ import string
 clients = {}
 rooms = {}
 
-decks = json.loads(open('cards.json', 'r').read())
+adminToken = "" 
+
+deckLocation = "./apples.json"
+
+decks = json.loads(open(deckLocation, 'r').read())
 
 class StatsServerProtocol(WebSocketServerProtocol):
 
@@ -20,11 +24,13 @@ class StatsServerProtocol(WebSocketServerProtocol):
 
     def onMessage(self, msg, binary):
         global rooms
+        print binary
         data = json.loads(msg)
         print data
         response = {}
-        if 'room' in data and data['room'] in rooms:
+        if 'room' in data:
             if data['action'] == "join":
+                self.currentInfo['clientName'] = data['clientName']
                 if data['room'] in rooms:
                     if self.factory.clients[data['clientId']].currentInfo['activeRoom'] == None:
                         if len(rooms[data['room']]['users']) >= rooms[data['room']]['options']['maxPlayers']:
@@ -48,10 +54,20 @@ class StatsServerProtocol(WebSocketServerProtocol):
                                     "gameState":rooms[data['room']],
                                     "playerName":data['clientName'],
                                 }))
+                                if len(rooms[data['room']]['users']) >= 2 and not(rooms[data['room']]['options']['started']):
+                                    rooms[data['room']]['options']['started'] = True
+                                    reactor.callLater(3, self.onMessage, msg=json.dumps({
+                                        "action":"startGame",
+                                        "room":data['room'],
+                                        "clientId":adminToken,
+                                        "clientName":"admin",
+                                    }), binary=False)
+
                     else:
-                        self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
+                        self.sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
                 else:
-                    self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'roomDoesNotExist'}))
+                    self.sendMessage(json.dumps({'error':'roomDoesNotExist'}))
+                    self.sendMessage(json.dumps({'action':'createRoom'}))
             elif data['action'] == "requestDrawCard":
                 for playerId in [x['id'] for x in rooms[data['room']]['users'] if not(x['id'] == data['clientId'])]:
                     self.factory.clients[playerId].sendMessage(json.dumps({"action":"discardCard"}))
@@ -61,7 +77,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
             elif data['action'] == "drawnCard":
                 rooms[data['room']]['decks'][data['type']][:] = [x for x in rooms[data['room']]['decks'][data['type']] if not(x==data['card'])]
             elif data['action'] == "startGame":
-                if self.factory.clients[data['clientId']].peerstr == self.peerstr:
+                if data['clientId'] == adminToken or self.factory.clients[data['clientId']].peerstr == self.peerstr:
                     rooms[data['room']]['judgeIndex'] += 1
                     rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
                     for player in rooms[data['room']]['users']:
@@ -69,7 +85,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
                             "action":"newJudgeCard",
                             "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
                         }))
-                    if rooms[data['room']]['judgeIndex'] > len(rooms[data['room']]['users']):
+                    if rooms[data['room']]['judgeIndex'] >= len(rooms[data['room']]['users']):
                         rooms[data['room']]['judgeIndex'] = -1
                     rooms[data['room']]['options']['open'] = False
                     rooms[data['room']]['options']['seedAdvance'] += 1
@@ -80,11 +96,29 @@ class StatsServerProtocol(WebSocketServerProtocol):
             elif data['action'] == "sendToJudge":
                 self.factory.clients[rooms[data['room']]['judge']].sendMessage(json.dumps({
                     'action':'playerChoice',
+                    'id':data['clientId'],
                     'card':data['card'],
                 }))
             elif data['action'] == "pickWinner":
-                None
-                # ToDo
+                for x in range(len(rooms[data['room']]['users'])):
+                    print rooms[data['room']]['users'][x]['id'], data['player']
+                    if rooms[data['room']]['users'][x]['id'] == data['player']:
+                        rooms[data['room']]['users'][x]['score'] += 1
+                for player in rooms[data['room']]['users']:
+                    self.factory.clients[player['id']].sendMessage(json.dumps({
+                        'action':'winningPick',
+                        'player':self.factory.clients[data['player']].currentInfo['clientName'],
+                        'cardId':data['card'],
+                        'gameState':rooms[data['room']],
+                        'waitTime':7
+                    }))
+                reactor.callLater(7, self.onMessage, msg=json.dumps({
+                    "action":"startGame",
+                    "room":data['room'],
+                    "clientId":adminToken,
+                    "clientName":"admin",
+                }), binary=False)
+
             elif data['action'] == "sync":
                 None
                 # ToDo
@@ -109,12 +143,13 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         'judge':data['clientId'],
                         'judgeIndex':-1,
                         'options':{
-                            'maxPlayers':8,
+                            'maxPlayers':16,
                             'private':False,
                             'seed':random.random(),
                             'seedAdvance':0,
                             'cardsInHand':10,
                             'open':True,
+                            'started':False
                         },
                         'owner':data['clientId'],
                         'decks':{
@@ -123,12 +158,14 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         },
                     }
                     rooms[newRoomId] = response['gameState']
-                    self.factory.clients[data['clientId']].sendMessage(json.dumps(response))
-                    self.factory.clients[data['clientId']].currentInfo['activeRoom'] = newRoomId
+                    self.sendMessage(json.dumps(response))
+                    self.currentInfo['activeRoom'] = newRoomId
                 except Exception as e:
                     print e
             else:
-                self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
+                self.sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
+        else:
+            self.sendMessage({'action':'createRoom'});
 
 
     def connectionLost(self, reason):
@@ -153,6 +190,7 @@ class StatsBroadcaster(WebSocketServerFactory):
         client.id = newClientId
         client.currentInfo = {
             "activeRoom":None,
+            "clientName":None,
         }
         self.clients[newClientId] = client
         client.sendMessage(json.dumps({"action":"register","clientId":client.id}))
@@ -176,20 +214,22 @@ class StatsBroadcaster(WebSocketServerFactory):
         for client in self.clients:
             client.sendMessage(msg)
 
-def generateUserId():
-    cid = ''.join(random.choice(string.letters + string.digits) for x in range(8))
+def generateUserId(l=8):
+    cid = ''.join(random.choice(string.letters + string.digits) for x in range(l))
     while cid in clients:
         cid = generateUserId()
     return cid
 
-def generateRoomId():
-    rid = ''.join(random.choice(string.letters + string.digits) for x in range(8))
+def generateRoomId(l=8):
+    rid = ''.join(random.choice(string.letters + string.digits) for x in range(l))
     while rid in rooms:
         rid = generateRoomId()
     return rid
 
 if __name__ == '__main__':
     print "Initalizing Server..."
+    adminToken = generateUserId(24)
+    print "Admin Token Generated: %s " % adminToken
 
     ServerFactory = StatsBroadcaster
     factory = ServerFactory("ws://localhost:9876")
