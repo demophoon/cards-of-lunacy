@@ -13,7 +13,7 @@ rooms = {}
 
 adminToken = "" 
 
-deckLocation = "./apples.json"
+deckLocation = "./cards.json"
 
 decks = json.loads(open(deckLocation, 'r').read())
 
