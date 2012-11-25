@@ -39,19 +39,15 @@ class StatsServerProtocol(WebSocketServerProtocol):
                             })
                             self.factory.clients[data['clientId']].sendMessage(json.dumps({
                                 "action":"gameJoined",
-                                "gameState":rooms[data['room']]
+                                "gameState":rooms[data['room']],
+                                "roomId":data['room'],
                             }))
-                            if len(rooms[data['room']]['users']) > 1:
-                                self.factory.clients[data['clientId']].sendMessage(json.dumps({
-                                    "action":"gameJoined",
+                            for player in rooms[data['room']]['users']:
+                                self.factory.clients[player['id']].sendMessage(json.dumps({
+                                    "action":"playerJoined",
                                     "gameState":rooms[data['room']],
-                                    "roomId":data['room'],
+                                    "playerName":data['clientName'],
                                 }))
-                                for player in rooms[data['room']]['users']:
-                                    self.factory.clients[player['id']].sendMessage(json.dumps({
-                                        "action":"playerJoined",
-                                        "playerName":data['clientName'],
-                                    }))
                     else:
                         self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
                 else:
@@ -64,9 +60,28 @@ class StatsServerProtocol(WebSocketServerProtocol):
 
             elif data['action'] == "drawnCard":
                 rooms[data['room']]['decks'][data['type']][:] = [x for x in rooms[data['room']]['decks'][data['type']] if not(x==data['card'])]
-            elif data['action'] == "playCard":
-                None
-                # ToDo
+            elif data['action'] == "startGame":
+                if self.factory.clients[data['clientId']].peerstr == self.peerstr:
+                    rooms[data['room']]['judgeIndex'] += 1
+                    rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
+                    for player in rooms[data['room']]['users']:
+                        self.factory.clients[player['id']].sendMessage(json.dumps({
+                            "action":"newJudgeCard",
+                            "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
+                        }))
+                    if rooms[data['room']]['judgeIndex'] > len(rooms[data['room']]['users']):
+                        rooms[data['room']]['judgeIndex'] = -1
+                    rooms[data['room']]['options']['open'] = False
+                    rooms[data['room']]['options']['seedAdvance'] += 1
+                else:
+                    self.sendMessage(json.dumps({
+                        "error":"authenticationError",
+                    }))
+            elif data['action'] == "sendToJudge":
+                self.factory.clients[rooms[data['room']]['judge']].sendMessage(json.dumps({
+                    'action':'playerChoice',
+                    'card':data['card'],
+                }))
             elif data['action'] == "pickWinner":
                 None
                 # ToDo
@@ -92,12 +107,14 @@ class StatsServerProtocol(WebSocketServerProtocol):
                             }
                         ],
                         'judge':data['clientId'],
+                        'judgeIndex':-1,
                         'options':{
                             'maxPlayers':8,
                             'private':False,
                             'seed':random.random(),
                             'seedAdvance':0,
                             'cardsInHand':10,
+                            'open':True,
                         },
                         'owner':data['clientId'],
                         'decks':{

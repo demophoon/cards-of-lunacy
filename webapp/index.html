@@ -50,6 +50,9 @@
             var clientId;
             var clientName;
             var roomId;
+            var activeUsers = [];
+            var owner = false;
+            var judge = false;
             
             function startGame() {
                 clientName = "guest" + ~~(playerToken*10000);
@@ -71,9 +74,9 @@
                                 }
                             break;
                             case "gameJoined":
+                                owner = data.gameState.owner == clientId;
                                 shuffleSeed = data.gameState.options.seed;
                                 cardsInHand = data.gameState.options.cardsInHand;
-                                    debugger;
                                 roomId = data.roomId;
                                 $('#shareLink').attr('href','./index.html#roomId=' + data.roomId).html("Invitation Link");
                                 Math.seedrandom(shuffleSeed);
@@ -91,8 +94,19 @@
                                 for (var x=0; x<cardsInHand; x+=1) {
                                     requestDrawCard();
                                 }
+                                if (owner) {
+                                    $("#adminPanel").tmpl({'start':'','stop':'disabled'}).appendTo('#wells')
+                                }
                             break;
                             case "playerJoined":
+                                activeUsers = data.gameState.users;
+                                reDrawScoreboard();
+                            break;
+                            case "newJudgeCard":
+                                newJudgeCard();
+                                if (data.judge == clientId) {
+                                    $('#playableCards').html("<div id='notify' class='alert alert-success'><button type='button' class='close' data-dismiss='alert' onclick='$(\"#notify\").remove()'>x</button><center>You are now the Judge!</center></div>");
+                                }
                             break;
                             case "drawCard":
                                 drawnCard(drawCard(),"white");
@@ -102,6 +116,9 @@
                             break;
                             case "playCard":
                                 discardCard(-1);
+                            break;
+                            case "playerChoice":
+                                addChoice(data.card);
                             break;
                             case "sync":
                             break;
@@ -155,11 +172,41 @@
                 request.type = type;
                 socket.send(JSON.stringify(request));
             }
+            function sendCardToJudge(cardId) {
+                var request = {};
+                request.action = "sendToJudge";
+                request.room = roomId;
+                request.clientId = clientId;
+                request.clientName = clientName;
+                request.card = cardId;
+                socket.send(JSON.stringify(request));
+            }
 
+            function adminStartGame() {
+                if ($("#adminStartGame").attr('disabled') == undefined) {
+                    var request = {};
+                    request.action = "startGame";
+                    request.room = roomId;
+                    request.clientId = clientId;
+                    request.clientName = clientName;
+                    socket.send(JSON.stringify(request));
+                }
+            }
+            
+            function adminStopGame() {
+                if ($("#adminStartGame").attr('disabled') == undefined) {
+                    var request = {};
+                    request.action = "stopGame";
+                    request.room = roomId;
+                    request.clientId = clientId;
+                    request.clientName = clientName;
+                    socket.send(JSON.stringify(request));
+                }
+            }
+            
             function message(msg) {
                 console.log(JSON.parse(msg));
             }
-
 
         </script>
         <script>
@@ -196,6 +243,20 @@
                         console.log("Error!");
                     }
                 });
+            }
+
+            function addChoice(cardId) {
+                var cardInfo = {
+                    "rotate":0,
+                    "leftpad":0,
+                    "toppad":0,
+                    "text":allPlay[cardId],
+                    "type":"player",
+                    "cardNum":0,
+                    "disabled":""
+                }
+                $("#playerCard").tmpl(cardInfo).appendTo("#playableCards");
+
             }
 
             function newJudgeCard() {
@@ -253,6 +314,14 @@
                 }
             }
 
+            function reDrawScoreboard() {
+                $('#leaders').html("");
+                for (var x=0; x<activeUsers.length; x+=1) {
+                    var cardInfo = {'name':activeUsers[x]['name'],'score':activeUsers[x]['score']}
+                    $("#score").tmpl(cardInfo).appendTo("#leaders");
+                }
+            }
+
             function discardCard(index) {
                 if (index == undefined) {
                     type = "judge";
@@ -263,7 +332,7 @@
                             canPlay = false;
                         discard.push(currentHand[index]);
                         
-                        // Send Card to Host
+                        sendCardToJudge(currentHand[index]);
                         
                         currentHand.splice(index,1);
                         
@@ -297,6 +366,13 @@
             </div>
         </script>
 
+        <script id='score' type="text/x-jquery-tmpl">
+            <tr>
+                <td>${name}</td>
+                <td>${score}</td>
+            </tr>
+        </script>
+        
         <script id='judgeCard' type="text/x-jquery-tmpl">
             <div class="card judge-card">
                 <b>${text}</b>
@@ -305,7 +381,17 @@
         
         <script id='discardCard' type="text/x-jquery-tmpl">
             <div class="card ${type}-card visible-desktop" style="margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:42px;line-height:115%;">
-                <b>Rotten Apples</b>
+                <b>Cards<br>of<br>Lunacy</b>
+            </div>
+        </script>
+
+        <script id="adminPanel" type="text/x-jquery-tmpl">
+            <div class="well">
+                <h4>Admin Panel</h4>
+                <center>
+                    <button id="adminStartGame" onclick="adminStartGame()" class="btn btn-success btn-mini ${start}">Start Game</button>
+                    <button id="adminStopGame" onclick="adminStopGame()" class="btn btn-danger btn-mini ${stop}">Stop Game</button>
+                </center>
             </div>
         </script>
     </head>
@@ -314,7 +400,7 @@
         <div class="navbar navbar-inverse navbar-fixed-top">
             <div class="navbar-inner">
                 <div class="container">
-                    <a href="#" class="brand">Rotten Apples</a>
+                    <a href="#" class="brand">Cards of Lunacy</a>
                     <ul class="nav pull-right">
                         <li>
                             <a href="#">Help <i class="icon-question-sign icon-white"></i></a>
@@ -334,7 +420,7 @@
                 <div id="playableCards"></div>
             </div>
 
-            <div class="span3">
+            <div class="span3" id="wells">
                 <div class="well">
                     <h4>Leaderboard</h4>
                     <table class="table">
@@ -348,7 +434,8 @@
                             
                         </tbody>
                     </table>
-                    <hr>
+                </div>
+                <div class="well">
                     <div id="newGame">
                         <center>
                             <div class="form-inline">
