@@ -42,17 +42,23 @@
         <link href="./css/bootstrap-responsive.css" rel="stylesheet">
         <script type="text/javascript" src="./js/jquery.js"></script>
         <script type="text/javascript" src="./js/jquery.tmpl.min.js"></script>
+        <script type="text/javascript" src="./js/jquery-bbq.min.js"></script>
         <script type="text/javascript" src="./js/seedrandom.js"></script>
         <script>
             // Connect to Web Socket Game Coordinator and Facilitator
             var socket;
+            var clientId;
+            var clientName;
+            var roomId;
+            
             function startGame() {
+                clientName = "guest" + ~~(playerToken*10000);
                 try {
                     var host = "ws://localhost:9876";
                     socket = new WebSocket(host);
-                    message("Connecting...");
+                    message('{"clientAction":"Connecting..."}');
                     socket.onopen = function() {
-                        message("Connected");
+                        message('{"clientAction":"Connected"}');
                     }
                     socket.onmessage = function(msg) {
                         message(msg.data);
@@ -60,28 +66,98 @@
                         switch (data.action) {
                             case "register":
                                 clientId = data.clientId;
+                                if ($.bbq.getState("roomId")) {
+                                    joinRoom($.bbq.getState("roomId"));
+                                }
+                            break;
+                            case "gameJoined":
+                                shuffleSeed = data.gameState.options.seed;
+                                cardsInHand = data.gameState.options.cardsInHand;
+                                    debugger;
+                                roomId = data.roomId;
+                                $('#shareLink').attr('href','./index.html#roomId=' + data.roomId).html("Invitation Link");
+                                Math.seedrandom(shuffleSeed);
+                                playCards = [];
+                                judgeCards = [];
+                                for (var x=0; x<data.gameState.decks.white.length; x+=1) {
+                                    playCards.push(data.gameState.decks.white[x]);
+                                }
+                                for (var x=0; x<data.gameState.decks.black.length; x+=1) {
+                                    judgeCards.push(data.gameState.decks.black[x]);
+                                }
+                                for (var x=0; x<data.gameState.options.seedAdvance; x+=1) {
+                                    Math.random();
+                                }
+                                for (var x=0; x<cardsInHand; x+=1) {
+                                    requestDrawCard();
+                                }
+                            break;
+                            case "playerJoined":
+                            break;
+                            case "drawCard":
+                                drawnCard(drawCard(),"white");
+                            break;
+                            case "discardCard":
+                                drawCard(false);
                             break;
                             case "playCard":
-                                drawCard(-1);
+                                discardCard(-1);
                             break;
                             case "sync":
                             break;
                             default:
-                                message("Unrecognized Command");
+                                message('{"clientAction":"Unknown Command"}');
                         }
 
                     }
                     socket.onclose = function() {
-                        message("Closed");
-                        setTimeout("init()",3000);
+                        message('{"clientAction":"Closed"}');
+                        setTimeout("startGame()",15000);
                     }
                 } catch(exception) {
-                    message("Error Connecting: " + exception);
+                    message('{"clientAction":"Error Connecting: ' + exception + '"}');
                 }
             }
 
+            function joinRoom(id) {
+                var request = {};
+                request.action = "join";
+                request.room = id;
+                request.clientId = clientId;
+                request.clientName = clientName;
+                socket.send(JSON.stringify(request));
+            }
+
+            function createRoom() {
+                var request = {};
+                request.action = "createRoom";
+                request.clientId = clientId;
+                request.clientName = clientName;
+                socket.send(JSON.stringify(request));
+            }
+
+            function requestDrawCard() {
+                var request = {};
+                request.action = "requestDrawCard";
+                request.room = roomId;
+                request.clientId = clientId;
+                request.clientName = clientName;
+                socket.send(JSON.stringify(request));
+            }
+
+            function drawnCard(cardId,type) {
+                var request = {};
+                request.action = "drawnCard";
+                request.room = roomId;
+                request.clientId = clientId;
+                request.clientName = clientName;
+                request.card = cardId;
+                request.type = type;
+                socket.send(JSON.stringify(request));
+            }
+
             function message(msg) {
-                console.log(msg);
+                console.log(JSON.parse(msg));
             }
 
 
@@ -89,21 +165,21 @@
         <script>
             var judgeCards = [];
             var playCards = [];
+            var allPlay = [];
+            var allJudge = [];
             var discard = [];
             var currentHand = [];
             var awesomePoints = [];
             var playerToken = Math.random()*100;
-            var shuffleSeed = Math.random();
+            var shuffleSeed;
             var canPlay = false;
             var cardsPlayed = 0;
             var howMany = 0;
-            var cardsInHand = 10;
-            var clientId;
+            var cardsInHand;
 
             $(document).ready(function() {
                 Math.seedrandom(shuffleSeed);
                 loadCards();
-                $("#gameid").html("<a>Game Seed: " + shuffleSeed + "</a>");
             });
             function loadCards() {
                 $.ajax({
@@ -112,8 +188,8 @@
                     dataType:"json",
                     timeout:25000,
                     success: function(data) {
-                        judgeCards = data.black;
-                        playCards = data.white;
+                        allPlay = data.white;
+                        allJudge = data.black;
                         startGame()
                     },
                     error: function() {
@@ -128,12 +204,13 @@
                 $("#discard").html("");
                 canPlay = true;
                 cardsPlayed = 0;
-                howMany = judgeCards[nextCard].match(/_/g).length;
-                var cardinfo = {"text":judgeCards[nextCard].replace(/_/g,'____________________')};
+                howMany = allJudge[judgeCards[nextCard]].match(/_/g).length;
+                var cardinfo = {"text":allJudge[judgeCards[nextCard]].replace(/_/g,'____________________')};
                 $("#judgeCard").tmpl(cardinfo).appendTo("#judge");
                 console.log(cardinfo);
                 judgeCards.splice(nextCard,1);
                 discardCard();
+                reDrawHand();
             }
 
             function drawCard(inHand) {
@@ -151,6 +228,11 @@
                     discard.push(playCards[nextCard]);
                     playCards.splice(nextCard,1);
                 }
+                reDrawHand();
+                return nextCard;
+            }
+            
+            function reDrawHand() {
                 $('#playableCards').html("");
                 var disabled = "disabled";
                 if (canPlay)
@@ -162,16 +244,15 @@
                         "rotate":0,
                         "leftpad":0,
                         "toppad":0,
-                        "text":currentHand[x],
+                        "text":allPlay[currentHand[x]],
                         "type":"player",
                         "cardNum":x,
                         "disabled":disabled
                     }
                     $("#playerCard").tmpl(cardInfo).appendTo("#playableCards");
                 }
-
             }
-            
+
             function discardCard(index) {
                 if (index == undefined) {
                     type = "judge";
@@ -197,7 +278,6 @@
                     "type":type
                 }
                 $("#discardCard").tmpl(cardInfo).appendTo("#discard");
-                drawCard();
             }
 
             function rotationValue(seed) {
@@ -264,13 +344,21 @@
                                 <th>Points</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td>Britt G.</td>
-                                <td>5</td>
-                            </tr>
+                        <tbody id="leaders">
+                            
                         </tbody>
                     </table>
+                    <hr>
+                    <div id="newGame">
+                        <center>
+                            <div class="form-inline">
+                                Name: <input type="text" class="input-small" id="clientName" />
+                            </div><br>
+                            <button class="btn btn-inverse btn-mini" onclick="createRoom()">New Room</button>
+                            <button class="btn btn-inverse btn-mini">Join Game</button><br>
+                            <a id="shareLink"></a>
+                        </center>
+                    </div>
                 </div>
             </div>
         </div>

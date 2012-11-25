@@ -8,9 +8,10 @@ import random
 import json
 import string
 
-userids = []
 clients = {}
 rooms = {}
+
+decks = json.loads(open('cards.json', 'r').read())
 
 class StatsServerProtocol(WebSocketServerProtocol):
 
@@ -18,22 +19,51 @@ class StatsServerProtocol(WebSocketServerProtocol):
         self.factory.register(self)
 
     def onMessage(self, msg, binary):
+        global rooms
         data = json.loads(msg)
+        print data
         response = {}
-        if data['room'] in rooms:
+        if 'room' in data and data['room'] in rooms:
             if data['action'] == "join":
-                if data['roomId'] in rooms:
-                    if len(rooms[data['roomId']]['users']) >= rooms[data['roomId']]['options']['maxPlayers']:
-                        self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'roomFull'}))
+                if data['room'] in rooms:
+                    if self.factory.clients[data['clientId']].currentInfo['activeRoom'] == None:
+                        if len(rooms[data['room']]['users']) >= rooms[data['room']]['options']['maxPlayers']:
+                            self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'roomFull'}))
+                        else:
+                            self.factory.clients[data['clientId']].currentInfo['activeRoom'] = data['room']
+                            rooms[data['room']]['users'].append({
+                                'id':data['clientId'],
+                                'name':data['clientName'],
+                                'score':0,
+                                'canPlay':False,
+                            })
+                            self.factory.clients[data['clientId']].sendMessage(json.dumps({
+                                "action":"gameJoined",
+                                "gameState":rooms[data['room']]
+                            }))
+                            if len(rooms[data['room']]['users']) > 1:
+                                self.factory.clients[data['clientId']].sendMessage(json.dumps({
+                                    "action":"gameJoined",
+                                    "gameState":rooms[data['room']],
+                                    "roomId":data['room'],
+                                }))
+                                for player in rooms[data['room']]['users']:
+                                    self.factory.clients[player['id']].sendMessage(json.dumps({
+                                        "action":"playerJoined",
+                                        "playerName":data['clientName'],
+                                    }))
                     else:
-                        rooms[data['roomId']]['users'].append({
-                            'id':data['clientId'],
-                            'name':data['clientName'],
-                            'score':0,
-                            'canPlay':False,
-                        })
+                        self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
                 else:
                     self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'roomDoesNotExist'}))
+            elif data['action'] == "requestDrawCard":
+                for playerId in [x['id'] for x in rooms[data['room']]['users'] if not(x['id'] == data['clientId'])]:
+                    self.factory.clients[playerId].sendMessage(json.dumps({"action":"discardCard"}))
+                self.factory.clients[data['clientId']].sendMessage(json.dumps({"action":"drawCard"}))
+                rooms[data['room']]['options']['seedAdvance'] += 1
+
+            elif data['action'] == "drawnCard":
+                rooms[data['room']]['decks'][data['type']][:] = [x for x in rooms[data['room']]['decks'][data['type']] if not(x==data['card'])]
             elif data['action'] == "playCard":
                 None
                 # ToDo
@@ -46,32 +76,43 @@ class StatsServerProtocol(WebSocketServerProtocol):
             else:
                 self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'invalidCommand'}))
                 
-        else:
-            try:
-                newRoomId = generateRoomId()
-                response['action'] = "createRoom"
-                response['roomId'] = newRoomId
-                response['gameState'] = {
-                    'users':[
-                        {
-                            'id':data['clientId'],
-                            'name':data['clientName'],
-                            'score':0,
-                            'canPlay':False,
-                        }
-                    ],
-                    'judge':data['clientId'],
-                    'options':{
-                        'maxPlayers':8,
-                        'private':False,
-                        'seed':newRoomId,
-                        'seedAdvance':0,
-                    },
-                }
-                rooms[newRoomId] = response['gameState']
-                self.factory.clients[data['clientId']].sendMessage(json.dumps(response))
-            except Exception as e:
-                print e
+        elif data['action'] == "createRoom":
+            if not(self.factory.clients[data['clientId']].currentInfo['activeRoom']):
+                try:
+                    newRoomId = generateRoomId()
+                    response['action'] = "gameJoined"
+                    response['roomId'] = newRoomId
+                    response['gameState'] = {
+                        'users':[
+                            {
+                                'id':data['clientId'],
+                                'name':data['clientName'],
+                                'score':0,
+                                'canPlay':False,
+                            }
+                        ],
+                        'judge':data['clientId'],
+                        'options':{
+                            'maxPlayers':8,
+                            'private':False,
+                            'seed':random.random(),
+                            'seedAdvance':0,
+                            'cardsInHand':10,
+                        },
+                        'owner':data['clientId'],
+                        'decks':{
+                            'white':range(0,len(decks['white'])-1),
+                            'black':range(0,len(decks['black'])-1),
+                        },
+                    }
+                    rooms[newRoomId] = response['gameState']
+                    self.factory.clients[data['clientId']].sendMessage(json.dumps(response))
+                    self.factory.clients[data['clientId']].currentInfo['activeRoom'] = newRoomId
+                except Exception as e:
+                    print e
+            else:
+                self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
+
 
     def connectionLost(self, reason):
         WebSocketServerProtocol.connectionLost(self, reason)
@@ -91,20 +132,25 @@ class StatsBroadcaster(WebSocketServerFactory):
             client.sendMessage(json.dumps(pingCommand))
         
     def register(self, client):
-        global clients
         newClientId = generateUserId()
         client.id = newClientId
+        client.currentInfo = {
+            "activeRoom":None,
+        }
         self.clients[newClientId] = client
-        clients[newClientId] = client
         client.sendMessage(json.dumps({"action":"register","clientId":client.id}))
         print "Client Registered: %s" % client.id
         print clients
 
     def unregister(self, client):
+        global rooms
         if client.id in self.clients:
-            global clients
+            if client.currentInfo['activeRoom']:
+                rooms[client.currentInfo['activeRoom']]['users'][:] = [x for x in rooms[client.currentInfo['activeRoom']]['users'] if not(x['id'] == client.id)]
+                if len(rooms[client.currentInfo['activeRoom']]['users']) == 0:
+                    rooms = {k:v for k,v in rooms.items() if k=="roomId" and v==client.currentInfo['activeRoom']}
+                    print "Empty Room Removed"
             self.clients.pop(client.id)
-            clients.pop(client.id)
             print "Client Unregistered: %s" % client.id
             print clients
 
