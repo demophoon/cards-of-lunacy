@@ -86,7 +86,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         }))
                     rooms[data['room']]['judgeIndex'] += 1
                     if rooms[data['room']]['judgeIndex'] >= len(rooms[data['room']]['users']):
-                        rooms[data['room']]['judgeIndex'] = -1
+                        rooms[data['room']]['judgeIndex'] = 0
                     rooms[data['room']]['options']['open'] = False
                     rooms[data['room']]['options']['seedAdvance'] += 1
                 else:

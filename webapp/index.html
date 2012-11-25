@@ -466,7 +466,7 @@
         </script>
 
         <script id='playerCard' type="text/x-jquery-tmpl">
-            <button class="btn btn-large btn-block" type="button" ${disabled} onclick="$(this).attr('disabled','true');discardCard(${cardNum})">${text}</button> 
+            <button class="btn btn-default btn-block" type="button" ${disabled} onclick="$(this).attr('disabled','true');discardCard(${cardNum})">${text}</button> 
         </script>
         
         <script id='pickCard' type="text/x-jquery-tmpl">
@@ -529,18 +529,15 @@
             </div>
         </div>
         <div class="container">
-            <div class="row">
-                <center>
-                    <div id="popupAlert"></div>
-                </center>
-            </div>
             <div class="span4">
                 <div id="judge"></div>
                 <div id="discard"></div>
+                
             </div>
 
 
             <div class="span4">
+                <div id="popupAlert"></div>
                 <div id="playableCards"></div>
             </div>
 
@@ -567,7 +564,7 @@
                         </center>
                     </div>
                 </div>
-                <div class="well well-small">
+                <div class="well well-small" style="position:absolute;">
                     <div id="chat">
                         <dl id="message" style="max-height:150px;font-size:12px;overflow:auto;">
                         </dl>
