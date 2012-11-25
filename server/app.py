@@ -78,13 +78,13 @@ class StatsServerProtocol(WebSocketServerProtocol):
                 rooms[data['room']]['decks'][data['type']][:] = [x for x in rooms[data['room']]['decks'][data['type']] if not(x==data['card'])]
             elif data['action'] == "startGame":
                 if data['clientId'] == adminToken or self.factory.clients[data['clientId']].peerstr == self.peerstr:
-                    rooms[data['room']]['judgeIndex'] += 1
                     rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
                     for player in rooms[data['room']]['users']:
                         self.factory.clients[player['id']].sendMessage(json.dumps({
                             "action":"newJudgeCard",
                             "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
                         }))
+                    rooms[data['room']]['judgeIndex'] += 1
                     if rooms[data['room']]['judgeIndex'] >= len(rooms[data['room']]['users']):
                         rooms[data['room']]['judgeIndex'] = -1
                     rooms[data['room']]['options']['open'] = False
@@ -202,6 +202,11 @@ class StatsBroadcaster(WebSocketServerFactory):
         if client.id in self.clients:
             if client.currentInfo['activeRoom']:
                 rooms[client.currentInfo['activeRoom']]['users'][:] = [x for x in rooms[client.currentInfo['activeRoom']]['users'] if not(x['id'] == client.id)]
+                for player in rooms[client.currentInfo['activeRoom']]['users']:
+                    self.clients[player['id']].sendMessage(json.dumps({
+                        "gameState":rooms[client.currentInfo['activeRoom']],
+                        "action":"playerLeft",
+                    }))
                 if len(rooms[client.currentInfo['activeRoom']]['users']) == 0:
                     rooms = {k:v for k,v in rooms.items() if k=="roomId" and v==client.currentInfo['activeRoom']}
                     print "Empty Room Removed"

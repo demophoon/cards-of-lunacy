@@ -107,6 +107,10 @@
                                     //$("#adminPanel").tmpl({'start':'','stop':'disabled'}).appendTo('#wells')
                                 }
                             break;
+                            case "playerLeft":
+                                activeUsers = data.gameState.users;
+                                reDrawScoreboard();
+                            break;
                             case "playerJoined":
                                 activeUsers = data.gameState.users;
                                 reDrawScoreboard();
