@@ -384,7 +384,7 @@
                     "player":player,
                     "disabled":""
                 }
-                $("#winnerCard").tmpl(cardInfo).appendTo("#discard");
+                $("#winnerCard").tmpl(cardInfo).appendTo("#judge");
             }
 
             function newJudgeCard() {
@@ -502,7 +502,7 @@
         </script>
         
         <script id='winnerCard' type="text/x-jquery-tmpl">
-            <div class="card player-card visible-desktop" style="margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:22px;line-height:115%;">
+            <div class="card player-card visible-desktop" style="top:25px;margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:22px;line-height:115%;position:absolute;">
                 <b>${text}</b><br><br>
                 --<b>${player}</b>
             </div>
