@@ -619,7 +619,7 @@
                             <div class="well">
                                 <h4>Send Global Message</h4>
                                 <form class="form-inline">
-                                    <input type="text" id="globalMessage" />
+                                    <input type="text" id="globalMessageInput" />
                                     <select id="globalMessageClass">
                                         <option value="">Default</option>
                                         <option value="success">Success</option>
@@ -678,10 +678,10 @@
                 request.action = "broadcastMessage";
                 request.token = adminToken;
                 request.from = clientName;
-                request.text = $('#globalMessage').val();
+                request.text = $('#globalMessageInput').val();
                 request.textClass = $('#globalMessageClass').val();
                 socket.send(JSON.stringify(request));
-                $('#globalMessage').val("");
+                $('#globalMessageInput').val("");
             }
 
             function updateClients() {
