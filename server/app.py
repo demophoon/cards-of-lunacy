@@ -24,7 +24,6 @@ class StatsServerProtocol(WebSocketServerProtocol):
 
     def onMessage(self, msg, binary):
         global rooms
-        print binary
         data = json.loads(msg)
         print data
         response = {}
@@ -110,9 +109,9 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         'player':self.factory.clients[data['player']].currentInfo['clientName'],
                         'cardId':data['card'],
                         'gameState':rooms[data['room']],
-                        'waitTime':7
+                        'waitTime':10
                     }))
-                reactor.callLater(7, self.onMessage, msg=json.dumps({
+                reactor.callLater(10, self.onMessage, msg=json.dumps({
                     "action":"startGame",
                     "room":data['room'],
                     "clientId":adminToken,
@@ -172,9 +171,36 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     print e
             else:
                 self.sendMessage(json.dumps({'error':'activeInAnotherRoom'}))
-        else:
-            self.sendMessage({'action':'createRoom'});
+        elif data['action'] == "clientList":
+            if 'token' in data and data['token'] == adminToken:
+                self.sendMessage(json.dumps({
+                    "clients":[{
+                        'clientId':self.factory.clients[x].id,
+                        'activeRoom':self.factory.clients[x].currentInfo['activeRoom'] or " - ",
+                        'clientName':self.factory.clients[x].currentInfo['clientName'],
+                        'peerstr':self.factory.clients[x].peerstr
+                        } for x in self.factory.clients],
+                    "action":"clientList",
+                }))
+        elif data['action'] == "checkAdminToken":
+            if not(self.currentInfo['adminTokenCheck']):
+                self.currentInfo['adminTokenCheck'] = True
+                self.sendMessage(json.dumps({'action':'validate','auth':data['token'] == adminToken}));
+        elif data['action'] == "listRooms":
+            if 'token' in data and data['token'] == adminToken:
+                self.sendMessage(json.dumps(rooms))
+        elif data['action'] == "broadcastMessage":
+            if 'token' in data and data['token'] == adminToken:
+                self.sendMessage(json.dumps(rooms))
+                self.factory.broadcast(json.dumps({
+                        'action':'newMessage',
+                        'text':data['text'],
+                        'from':data['from'],
+                        'textClass':data['textClass'],
+                    }))
 
+        else:
+            self.sendMessage(json.dumps({'action':'createRoom'}));
 
     def connectionLost(self, reason):
         WebSocketServerProtocol.connectionLost(self, reason)
@@ -186,6 +212,7 @@ class StatsBroadcaster(WebSocketServerFactory):
     def __init__(self, url, debug=False, debugCodePaths=False):
         WebSocketServerFactory.__init__(self, url, debug=debug, debugCodePaths=debugCodePaths)
         self.clients = {}
+        self.administrator = None
 
     def pingClients(self):
         pingCommand = {'action':'ping'}
@@ -199,6 +226,7 @@ class StatsBroadcaster(WebSocketServerFactory):
         client.currentInfo = {
             "activeRoom":None,
             "clientName":None,
+            "adminTokenCheck":False,
         }
         self.clients[newClientId] = client
         client.sendMessage(json.dumps({"action":"register","clientId":client.id}))
@@ -225,7 +253,7 @@ class StatsBroadcaster(WebSocketServerFactory):
     def broadcast(self, msg):
         print "Broadcasting Message to all clients..."
         for client in self.clients:
-            client.sendMessage(msg)
+            self.clients[client].sendMessage(msg)
 
 def generateUserId(l=4):
     cid = ''.join(random.choice(string.letters + string.digits) for x in range(l))
@@ -241,7 +269,10 @@ def generateRoomId(l=4):
 
 if __name__ == '__main__':
     print "Initalizing Server..."
-    adminToken = generateUserId(24)
+    adminToken = generateUserId(64)
+    f = open('adminToken.txt','w')
+    f.write(adminToken)
+    f.close()
     print "Admin Token Generated: %s " % adminToken
 
     ServerFactory = StatsBroadcaster

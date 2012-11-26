@@ -29,21 +29,7 @@
                 box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
                 -webkit-font-smoothing:subpixel-antialiased;
                 border-radius: 10px;
-                -webkit-animation: cardFall .5s;
-                overflow:none;
             }
-            
-            @-webkit-keyframes cardFall {
-                from {
-                    opacity:.25;
-                    -webkit-transform: scale(1.5,1.5) translate(25px,50px) rotate(-15deg);
-                }
-                to {
-                    opacity:1;
-                    -webkit-transform: scale(1,1) translate(0px,0px) rotate(0deg);
-                }
-            }
-
             .mid {
                 text-align:center;
             }
@@ -69,7 +55,15 @@
             var activeUsers = [];
             var owner = false;
             var judge = false;
+            var adminToken = "";
             
+            function validateToken() {
+                var request = {};
+                request.action = "checkAdminToken";
+                request.token = adminToken;
+                socket.send(JSON.stringify(request));
+            }
+
             function startGame() {
                 try {
                     var host = "ws://192.168.0.102:9876";
@@ -77,6 +71,7 @@
                     message('{"clientAction":"Connecting..."}');
                     socket.onopen = function() {
                         message('{"clientAction":"Connected"}');
+                        validateToken();
                     }
                     socket.onmessage = function(msg) {
                         message(msg.data);
@@ -89,21 +84,18 @@
                                     newInfoPopup("Wait for the next round...")
                                 } else {
                                     createRoom();
-                                    newInfoPopup("Invite your friends to play!")
                                 }
                             break;
                             case "createRoom":
-                                createRoom();
-                                newInfoPopup("Invite your friends to play!")
+                                //createRoom();
+                                //newInfoPopup("Invite your friends to play!")
                             break;
                             case "gameJoined":
                                 owner = data.gameState.owner == clientId;
                                 shuffleSeed = data.gameState.options.seed;
                                 cardsInHand = data.gameState.options.cardsInHand;
-                                activeUsers = data.gameState.users;
                                 roomId = data.roomId;
                                 $.bbq.pushState({'roomId':roomId});
-                                reDrawScoreboard();
                                 $('#shareLink').attr('href','./index.html#roomId=' + data.roomId).html("Invitation Link");
                                 $('#shareLinkInput').val(document.location.href);
                                 Math.seedrandom(shuffleSeed);
@@ -158,11 +150,23 @@
                                 reDrawScoreboard();
                                 winnerCard(data.player, JSON.parse(data.cardId));
                             break;
+                            case "validate":
+                                if (!data.auth) 
+                                    document.location.href = "./index.html";
+                            break;
                             case "sync":
                             break;
                             case "newMessage":
                                 $('#newMessage').tmpl(data).appendTo('#message');
                                 $("#message").animate({scrollTop:$("#message")[0].scrollHeight}, 1000);
+                            break;
+                            case "clientList":
+                                var fstr = "";
+                                for (var x=0; x<data.clients.length; x+=1) {
+                                    fstr += "<tr><th>" + data.clients[x].clientId + "</th><th>" + data.clients[x].clientName + "</th>"
+                                    fstr += "<th>" + data.clients[x].activeRoom + "</th><th>" + data.clients[x].peerstr + "</th></tr>";
+                                }
+                                $('#users').html(fstr);
                             break;
                             default:
                                 message('{"clientAction":"Unknown Command"}');
@@ -307,13 +311,25 @@
             var cardsInHand;
             var deckLocation = "./apples.json";
 
+            function getAdminAuthToken() {
+                bootbox.prompt("Administrator One-Time Authentication Token?", "Cancel", "OK", function(result) {
+                    if (result) {
+                        adminToken = result;
+                        startGame();
+                    } else {
+                        document.location.href = "./index.html";
+                    }
+                },"Auth Token");
+            }
+
             $(document).ready(function() {
                 Math.seedrandom(shuffleSeed);
-                clientName = "guest" + ~~(playerToken*10000);
+                clientName = "Administrator";
                 bootbox.prompt("What is your name?", "Cancel", "OK", function(result) {
                     if (result)
                         clientName = result;
                     loadCards();
+                    getAdminAuthToken();
                 }, clientName);
                 
                 $("#messageContent").keyup(function(event){
@@ -332,7 +348,6 @@
                     success: function(data) {
                         allPlay = data.white;
                         allJudge = data.black;
-                        startGame()
                     },
                     error: function() {
                         console.log("Error!");
@@ -365,7 +380,7 @@
                     cards.push(allPlay[cardId[x]]);
                 }
                 var cardInfo = {
-                    "rotate":0,
+                    "rotate":~~(rotationValue()*50-25),
                     "leftpad":~~(rotationValue(12342142134)*100),
                     "toppad":~~(rotationValue(5649813156)*40+25),
                     "text":cards.join(", "),
@@ -407,7 +422,7 @@
                     discard.push(playCards[nextCard]);
                     playCards.splice(nextCard,1);
                     cardInfo = {
-                        "rotate":0,
+                        "rotate":~~(rotationValue()*50-25),
                         "leftpad":~~(rotationValue(12342142134)*100),
                         "toppad":~~(rotationValue(5649813156)*40+25),
                         "type":"player"
@@ -467,7 +482,7 @@
                     type = "player";
                 }
                 cardInfo = {
-                    "rotate":0,
+                    "rotate":~~(rotationValue()*50-25),
                     "leftpad":~~(rotationValue(12342142134)*100),
                     "toppad":~~(rotationValue(5649813156)*40+25),
                     "type":type
@@ -546,53 +561,102 @@
             </div>
         </div>
         <div class="container">
-            <div class="span4">
-                <div id="judge"></div>
-                <div id="discard"></div>
-                
-            </div>
-
-
-            <div class="span4">
-                <div id="popupAlert"></div>
-                <div id="playableCards"></div>
-            </div>
-
-            <div class="span3" id="wells">
-                <div class="well">
-                    <h4>Leaderboard</h4>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Points</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaders">
-                            
-                        </tbody>
-                    </table>
-                </div>
-                <div class="well">
-                    <div id="newGame">
-                        <center>
-                            <a id="shareLink"></a><br>
-                            <input type="text" class="input" id="shareLinkInput" />
-                        </center>
-                    </div>
-                </div>
-                <div class="well well-small" style="position:absolute;">
-                    <div id="chat">
-                        <dl id="message" style="max-height:150px;font-size:12px;overflow:auto;">
-                        </dl>
-                        <div class="input-append">
-                            <input type="text" id="messageContent" class="span2" placeholder="Send Message" />
-                            <button class="btn" onclick="sendMessage();">Send</button>
+            
+            <div class="tabbable tabs-left">
+                <ul class="nav nav-tabs">
+                    <li class="active"><a href="#gamePage" data-toggle="tab">Gameplay</a></li>
+                    <li><a href="#globalMessage" data-toggle="tab">Global Message</a></li>
+                    <li><a href="#clientList" data-toggle="tab" onmousedown="updateClients()">Clients</a></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane active" id="gamePage">
+                        <div class="container-fluid">
+                            <div class="span3">
+                                <div id="judge"></div>
+                                <div id="discard"></div>
+                            </div>
+                            <div class="span3">
+                                <div id="popupAlert"></div>
+                                <div id="playableCards"></div>
+                            </div>
+                            <div class="span3" id="wells">
+                                <div class="well">
+                                    <h4>Leaderboard</h4>
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Points</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="leaders"></tbody>
+                                    </table>
+                                </div>
+                                <div class="well">
+                                    <div id="newGame">
+                                        <center>
+                                            <a id="shareLink"></a><br>
+                                            <input type="text" class="input" id="shareLinkInput" />
+                                        </center>
+                                    </div>
+                                </div>
+                                <div class="well well-small" style="position:absolute;">
+                                    <div id="chat">
+                                        <dl id="message" style="max-height:150px;font-size:12px;overflow:auto;">
+                                        </dl>
+                                        <div class="input-append">
+                                            <input type="text" id="messageContent" class="span2" placeholder="Send Message" />
+                                            <button class="btn" onclick="sendMessage();">Send</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div> <!-- End Tab-pane Gamepage-->
+               
+                    <div class="tab-pane" id="globalMessage">
+                        <div id="container-fluid">
+                            <div class="well">
+                                <h4>Send Global Message</h4>
+                                <form class="form-inline">
+                                    <input type="text" id="globalMessage" />
+                                    <select id="globalMessageClass">
+                                        <option value="">Default</option>
+                                        <option value="success">Success</option>
+                                        <option value="warning">Warning</option>
+                                        <option value="important">Important</option>
+                                        <option value="info">Info</option>
+                                        <option value="inverse">Inverse</option>
+                                    </select>
+                                    <button type="button" class="btn" onclick="sendGlobalMessage()">Send Message</button>
+                                </form>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="tab-pane" id="clientList">
+                        <div class="well">
+                            <a href="#" onmousedown="updateClients()">Update Clients</a>
+                            <table class="table table-bordered table-striped table-condensed">
+                                <thead>
+                                    <tr>
+                                        <th>clientId</th>
+                                        <th>clientName</th>
+                                        <th>Room Id</th>
+                                        <th>Peer String</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                
                 </div>
             </div>
-        </div>
+                
+            
+            
+       </div>
         <div class="navbar navbar-inverse navbar-fixed-bottom">
             <div class="navbar-inner">
                 <div class="container">
@@ -604,5 +668,29 @@
                 </div>
             </div>
         </div>
+        <script type="text/javascript">
+            // Admin Tools
+
+            var activeClients = [];
+
+            function sendGlobalMessage() {
+                var request = {};
+                request.action = "broadcastMessage";
+                request.token = adminToken;
+                request.from = clientName;
+                request.text = $('#globalMessage').val();
+                request.textClass = $('#globalMessageClass').val();
+                socket.send(JSON.stringify(request));
+                $('#globalMessage').val("");
+            }
+
+            function updateClients() {
+                activeClients = [];
+                var request = {};
+                request.action = "clientList";
+                request.token = adminToken;
+                socket.send(JSON.stringify(request));
+            }
+        </script>
     </body>
 </html>
