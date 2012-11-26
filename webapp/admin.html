@@ -168,6 +168,9 @@
                                 }
                                 $('#users').html(fstr);
                             break;
+                            case "updateClients":
+                                updateClients();
+                            break;
                             default:
                                 message('{"clientAction":"Unknown Command"}');
                         }
@@ -326,8 +329,11 @@
                 Math.seedrandom(shuffleSeed);
                 clientName = "Administrator";
                 bootbox.prompt("What is your name?", "Cancel", "OK", function(result) {
-                    if (result)
+                    if (result) {
                         clientName = result;
+                    } else {
+                        clientName = "Administrator";
+                    }
                     loadCards();
                     getAdminAuthToken();
                 }, clientName);

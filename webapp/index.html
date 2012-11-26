@@ -64,7 +64,6 @@
             // Connect to Web Socket Game Coordinator and Facilitator
             var socket;
             var clientId;
-            var clientName;
             var roomId;
             var activeUsers = [];
             var owner = false;
@@ -77,6 +76,9 @@
                     message('{"clientAction":"Connecting..."}');
                     socket.onopen = function() {
                         message('{"clientAction":"Connected"}');
+                        if (clientName != undefined) {
+                            sync();
+                        }
                     }
                     socket.onmessage = function(msg) {
                         message(msg.data);
@@ -244,6 +246,14 @@
                 socket.send(JSON.stringify(request));
             }
 
+            function sync() {
+                var request = {};
+                request.action = "sync";
+                request.clientId = clientId;
+                request.clientName = clientName;
+                socket.send(JSON.stringify(request));
+            }
+
             function adminStartGame() {
                 if ($("#adminStartGame").attr('disabled') == undefined) {
                     var request = {};
@@ -300,6 +310,7 @@
             var awesomePoints = [];
             var cardsToJudge = [];
             var playerToken = Math.random()*100;
+            var clientName = "guest" + ~~(playerToken*10000);
             var shuffleSeed;
             var canPlay = false;
             var cardsPlayed = 0;
@@ -309,10 +320,10 @@
 
             $(document).ready(function() {
                 Math.seedrandom(shuffleSeed);
-                clientName = "guest" + ~~(playerToken*10000);
                 bootbox.prompt("What is your name?", "Cancel", "OK", function(result) {
-                    if (result)
+                    if (result) {
                         clientName = result;
+                    }
                     loadCards();
                 }, clientName);
                 

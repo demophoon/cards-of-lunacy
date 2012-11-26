@@ -27,9 +27,12 @@ class StatsServerProtocol(WebSocketServerProtocol):
         data = json.loads(msg)
         print data
         response = {}
+        if 'clientName' in data and not(data['clientName'] == None):
+            self.currentInfo['clientName'] = data['clientName']
+            for admin in self.factory.administrators:
+                admin.sendMessage(json.dumps({'action':'updateClients'}))
         if 'room' in data:
             if data['action'] == "join":
-                self.currentInfo['clientName'] = data['clientName']
                 if data['room'] in rooms:
                     if self.factory.clients[data['clientId']].currentInfo['activeRoom'] == None:
                         if len(rooms[data['room']]['users']) >= rooms[data['room']]['options']['maxPlayers']:
@@ -119,6 +122,8 @@ class StatsServerProtocol(WebSocketServerProtocol):
                 }), binary=False)
 
             elif data['action'] == "newMessage":
+                if self.currentInfo['clientName'] == None:
+                    self.currentInfo['clientName'] == data['clientName']
                 for player in rooms[data['room']]['users']:
                     self.factory.clients[player['id']].sendMessage(json.dumps({
                         'action':'newMessage',
@@ -127,8 +132,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     }))
                 
             elif data['action'] == "sync":
-                None
-                # ToDo
+                self.currentInfo['clientName'] = data['clientName']
             else:
                 self.factory.clients[data['clientId']].sendMessage(json.dumps({'error':'invalidCommand'}))
                 
@@ -185,7 +189,10 @@ class StatsServerProtocol(WebSocketServerProtocol):
         elif data['action'] == "checkAdminToken":
             if not(self.currentInfo['adminTokenCheck']):
                 self.currentInfo['adminTokenCheck'] = True
-                self.sendMessage(json.dumps({'action':'validate','auth':data['token'] == adminToken}));
+                self.sendMessage(json.dumps({'action':'validate','auth':data['token'] == adminToken}))
+                if data['token'] == adminToken:
+                    self.factory.administrators.append(self)
+                    print self.factory.administrators
         elif data['action'] == "listRooms":
             if 'token' in data and data['token'] == adminToken:
                 self.sendMessage(json.dumps(rooms))
@@ -212,7 +219,7 @@ class StatsBroadcaster(WebSocketServerFactory):
     def __init__(self, url, debug=False, debugCodePaths=False):
         WebSocketServerFactory.__init__(self, url, debug=debug, debugCodePaths=debugCodePaths)
         self.clients = {}
-        self.administrator = None
+        self.administrators = []
 
     def pingClients(self):
         pingCommand = {'action':'ping'}
@@ -231,10 +238,13 @@ class StatsBroadcaster(WebSocketServerFactory):
         self.clients[newClientId] = client
         client.sendMessage(json.dumps({"action":"register","clientId":client.id}))
         print "Client Registered: %s" % client.id
-        print clients
+        for admin in self.administrators:
+            admin.sendMessage(json.dumps({'action':'updateClients'}))
 
     def unregister(self, client):
         global rooms
+        if client in self.administrators:
+            self.administrators[:] = [x for x in self.administrators if not(x == client)]
         if client.id in self.clients:
             if client.currentInfo['activeRoom']:
                 rooms[client.currentInfo['activeRoom']]['users'][:] = [x for x in rooms[client.currentInfo['activeRoom']]['users'] if not(x['id'] == client.id)]
@@ -248,7 +258,8 @@ class StatsBroadcaster(WebSocketServerFactory):
                     print "Empty Room Removed"
             self.clients = {k:v for k, v in self.clients.items() if not(k == client.id)}
             print "Client Unregistered: %s" % client.id
-            print clients
+        for admin in self.administrators:
+            admin.sendMessage(json.dumps({'action':'updateClients'}))
 
     def broadcast(self, msg):
         print "Broadcasting Message to all clients..."
