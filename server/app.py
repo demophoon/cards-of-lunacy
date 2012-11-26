@@ -246,7 +246,7 @@ class StatsBroadcaster(WebSocketServerFactory):
                 if len(rooms[client.currentInfo['activeRoom']]['users']) == 0:
                     rooms = {k:v for k,v in rooms.items() if k=="roomId" and v==client.currentInfo['activeRoom']}
                     print "Empty Room Removed"
-            self.clients.pop(client.id)
+            self.clients = {k:v for k, v in self.clients.items() if not(k == client.id)}
             print "Client Unregistered: %s" % client.id
             print clients
 

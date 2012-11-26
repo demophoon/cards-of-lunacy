@@ -163,8 +163,8 @@
                             case "clientList":
                                 var fstr = "";
                                 for (var x=0; x<data.clients.length; x+=1) {
-                                    fstr += "<tr><th>" + data.clients[x].clientId + "</th><th>" + data.clients[x].clientName + "</th>"
-                                    fstr += "<th>" + data.clients[x].activeRoom + "</th><th>" + data.clients[x].peerstr + "</th></tr>";
+                                    fstr += "<tr><td>" + data.clients[x].clientId + "</td><td>" + data.clients[x].clientName + "</td>"
+                                    fstr += "<td>" + data.clients[x].activeRoom + "</td><td>" + data.clients[x].peerstr + "</td></tr>";
                                 }
                                 $('#users').html(fstr);
                             break;
