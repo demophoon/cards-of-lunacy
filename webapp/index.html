@@ -108,18 +108,6 @@
                                 reDrawScoreboard();
                                 $('#shareLink').attr('href','./index.html#roomId=' + data.roomId).html("Invitation Link");
                                 $('#shareLinkInput').val(document.location.href);
-                                Math.seedrandom(shuffleSeed);
-                                playCards = [];
-                                judgeCards = [];
-                                for (var x=0; x<data.gameState.decks.white.length; x+=1) {
-                                    playCards.push(data.gameState.decks.white[x]);
-                                }
-                                for (var x=0; x<data.gameState.decks.black.length; x+=1) {
-                                    judgeCards.push(data.gameState.decks.black[x]);
-                                }
-                                for (var x=0; x<data.gameState.options.seedAdvance; x+=1) {
-                                    Math.random();
-                                }
                                 for (var x=0; x<cardsInHand; x+=1) {
                                     requestDrawCard();
                                 }
@@ -137,16 +125,16 @@
                             break;
                             case "newJudgeCard":
                                 newInfoPopup();
-                                newJudgeCard();
+                                newJudgeCard(data.judgeCard);
                                 if (data.judge == clientId) {
                                     $('#playableCards').html("<div id='notify' class='alert alert-success'><button type='button' class='close' data-dismiss='alert' onclick='$(\"#notify\").remove()'>x</button><center>You are now the Judge!</center></div>");
                                 }
                             break;
                             case "drawCard":
-                                drawnCard(drawCard(),"white");
+                                drawCard(data.card);
                             break;
                             case "discardCard":
-                                drawCard(false);
+                                discardCard("player");
                             break;
                             case "playCard":
                                 discardCard(-1);
@@ -214,16 +202,6 @@
                 socket.send(JSON.stringify(request));
             }
 
-            function drawnCard(cardId,type) {
-                var request = {};
-                request.action = "drawnCard";
-                request.room = roomId;
-                request.clientId = clientId;
-                request.clientName = clientName;
-                request.card = cardId;
-                request.type = type;
-                socket.send(JSON.stringify(request));
-            }
             function sendCardToJudge(cardId) {
                 var request = {};
                 request.action = "sendToJudge";
@@ -387,47 +365,41 @@
                 $("#winnerCard").tmpl(cardInfo).appendTo("#judge");
             }
 
-            function newJudgeCard() {
-                var nextCard = Math.ceil(Math.random()*judgeCards.length)-1;
+            function newJudgeCard(judgeCard) {
+                var nextCard = judgeCard
                 $("#judge").html("");
                 $("#discard").html("");
                 canPlay = true;
                 cardsPlayed = 0;
-                howMany = allJudge[judgeCards[nextCard]].match(/_/g).length;
-                var cardinfo = {"text":allJudge[judgeCards[nextCard]].replace(/_/g,'____________________')};
+                howMany = allJudge[nextCard].match(/_/g).length;
+                var cardinfo = {"text":allJudge[nextCard].replace(/_/g,'____________________')};
                 $("#judgeCard").tmpl(cardinfo).appendTo("#judge");
                 console.log(cardinfo);
-                judgeCards.splice(nextCard,1);
                 discardCard();
                 reDrawHand();
             }
 
-            function drawCard(inHand) {
-                if (inHand == undefined)
-                    inHand = true;
-                var nextCard = Math.ceil(Math.random()*playCards.length)-1;
-                if (inHand) {
+            function drawCard(cardId) {
+                var nextCard = cardId;
                     if (currentHand.length < cardsInHand) {
-                        currentHand.push(playCards[nextCard]);
-                        playCards.splice(nextCard,1);
+                        currentHand.push(nextCard);
                         reDrawHand();
                     } else if (currentHand >= cardsInHand) {
                         console.log("Hand is full.");
                     }
-                } else {
-                    discard.push(playCards[nextCard]);
-                    playCards.splice(nextCard,1);
-                    cardInfo = {
-                        "rotate":0,
-                        "leftpad":~~(rotationValue(12342142134)*100),
-                        "toppad":~~(rotationValue(5649813156)*40+25),
-                        "type":"player"
-                    }
-                    $("#discardCard").tmpl(cardInfo).appendTo("#discard");
-                }
                 return nextCard;
             }
             
+            function discardCard(type) {
+                cardInfo = {
+                    "rotate":0,
+                    "leftpad":~~(rotationValue(12342142134)*100),
+                    "toppad":~~(rotationValue(5649813156)*40+25),
+                    "type":type
+                }
+                $("#discardCard").tmpl(cardInfo).appendTo("#discard");
+            }
+
             function reDrawHand() {
                 if (!judge) {
                     $('#playableCards').html("");

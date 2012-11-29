@@ -32,6 +32,8 @@ class StatsServerProtocol(WebSocketServerProtocol):
             for admin in self.factory.administrators:
                 admin.sendMessage(json.dumps({'action':'updateClients'}))
         if 'room' in data:
+            if data['room'] in rooms:
+                room = rooms[data['room']]
             if data['action'] == "join":
                 if data['room'] in rooms:
                     if self.factory.clients[data['clientId']].currentInfo['activeRoom'] == None:
@@ -70,21 +72,23 @@ class StatsServerProtocol(WebSocketServerProtocol):
                 else:
                     self.sendMessage(json.dumps({'error':'roomDoesNotExist'}))
                     self.sendMessage(json.dumps({'action':'createRoom'}))
+                    
             elif data['action'] == "requestDrawCard":
-                for playerId in [x['id'] for x in rooms[data['room']]['users'] if not(x['id'] == data['clientId'])]:
-                    self.factory.clients[playerId].sendMessage(json.dumps({"action":"discardCard"}))
-                self.factory.clients[data['clientId']].sendMessage(json.dumps({"action":"drawCard"}))
-                rooms[data['room']]['options']['seedAdvance'] += 1
+                nextCard = room['decks']['white'].pop(random.choice(range(len(room['decks']['white']))))
+                print nextCard, decks['white'][nextCard]
+                self.factory.clients[data['clientId']].sendMessage(json.dumps({"action":"drawCard","card":nextCard}))
 
-            elif data['action'] == "drawnCard":
-                rooms[data['room']]['decks'][data['type']][:] = [x for x in rooms[data['room']]['decks'][data['type']] if not(x==data['card'])]
             elif data['action'] == "startGame":
                 if data['clientId'] == adminToken or self.factory.clients[data['clientId']].peerstr == self.peerstr:
                     rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
+                    if room["newRound"]:
+                        room["newRound"] = False
+                        room["judgeCard"] = room['decks']['black'].pop(random.choice(range(len(room['decks']['black']))))
                     for player in rooms[data['room']]['users']:
                         self.factory.clients[player['id']].sendMessage(json.dumps({
                             "action":"newJudgeCard",
                             "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
+                            "judgeCard":room['judgeCard']
                         }))
                     rooms[data['room']]['judgeIndex'] += 1
                     if rooms[data['room']]['judgeIndex'] >= len(rooms[data['room']]['users']):
@@ -101,7 +105,12 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     'id':data['clientId'],
                     'card':data['card'],
                 }))
+                for player in rooms[data['room']]['users']:
+                    if not(self.id == player['id']):
+                        self.factory.clients[player["id"]].sendMessage(json.dumps({'action':'discardCard'}))
+                    
             elif data['action'] == "pickWinner":
+                room["newRound"] = True
                 for x in range(len(rooms[data['room']]['users'])):
                     print rooms[data['room']]['users'][x]['id'], data['player']
                     if rooms[data['room']]['users'][x]['id'] == data['player']:
@@ -156,12 +165,14 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         'options':{
                             'maxPlayers':16,
                             'private':False,
-                            'seed':random.random(),
                             'seedAdvance':0,
                             'cardsInHand':10,
                             'open':True,
-                            'started':False
+                            'started':False,
+                            'permenant':False,
                         },
+                        'newRound':True,
+                        'judgeCard':None,
                         'owner':data['clientId'],
                         'decks':{
                             'white':range(0,len(decks['white'])-1),
@@ -234,6 +245,7 @@ class StatsBroadcaster(WebSocketServerFactory):
             "activeRoom":None,
             "clientName":None,
             "adminTokenCheck":False,
+            "hand":[],
         }
         self.clients[newClientId] = client
         client.sendMessage(json.dumps({"action":"register","clientId":client.id}))
