@@ -23,6 +23,7 @@
                 width:179px;
                 padding:10px;
                 font-weight:bold;
+                text-align:left;
                 -webkit-border-radius: 10px;
                 -moz-border-radius: 10px;
                 -webkit-box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
@@ -61,456 +62,43 @@
         <script type="text/javascript" src="./js/bootbox.min.js"></script>
         <script type="text/javascript" src="./js/seedrandom.js"></script>
         <script>
-            // Connect to Web Socket Game Coordinator and Facilitator
             var socket;
-            var clientId;
-            var roomId;
-            var activeUsers = [];
-            var owner = false;
-            var judge = false;
+            var rooms = [];
+
+            function checkRoomStatus() {
+                d
+            }
             
-            function startGame() {
+            function getRoomId() {
+                bootbox.prompt("What is the Room Id?", function(result) {
+                    checkRoomStatus(result);
+                });
+            }
+
+            function connectToGameCoordinator() {
                 try {
                     var host = "ws://192.168.0.102:9876";
                     socket = new WebSocket(host);
                     message('{"clientAction":"Connecting..."}');
                     socket.onopen = function() {
                         message('{"clientAction":"Connected"}');
-                        if (clientName != undefined) {
-                            sync();
-                        }
                     }
                     socket.onmessage = function(msg) {
-                        message(msg.data);
                         data = JSON.parse(msg.data);
-                        switch (data.action) {
-                            case "register":
-                                clientId = data.clientId;
-                                if ($.bbq.getState("roomId")) {
-                                    joinRoom($.bbq.getState("roomId"));
-                                    newInfoPopup("Wait for the next round...")
-                                } else {
-                                    createRoom();
-                                    newInfoPopup("Invite your friends to play!")
-                                }
+                        switch(data.action) {
+                            case "roomsList":
+                                rooms = data.rooms;
                             break;
-                            case "createRoom":
-                                createRoom();
-                                newInfoPopup("Invite your friends to play!")
-                            break;
-                            case "gameJoined":
-                                owner = data.gameState.owner == clientId;
-                                shuffleSeed = data.gameState.options.seed;
-                                cardsInHand = data.gameState.options.cardsInHand;
-                                activeUsers = data.gameState.users;
-                                roomId = data.roomId;
-                                $.bbq.pushState({'roomId':roomId});
-                                reDrawScoreboard();
-                                $('#shareLink').attr('href','./index.html#roomId=' + data.roomId).html("Invitation Link");
-                                $('#shareLinkInput').val(document.location.href);
-                                for (var x=0; x<cardsInHand; x+=1) {
-                                    requestDrawCard();
-                                }
-                                if (owner) {
-                                    //$("#adminPanel").tmpl({'start':'','stop':'disabled'}).appendTo('#wells')
-                                }
-                            break;
-                            case "playerLeft":
-                                activeUsers = data.gameState.users;
-                                reDrawScoreboard();
-                            break;
-                            case "playerJoined":
-                                activeUsers = data.gameState.users;
-                                reDrawScoreboard();
-                            break;
-                            case "newJudgeCard":
-                                newInfoPopup();
-                                newJudgeCard(data.judgeCard);
-                                if (data.judge == clientId) {
-                                    $('#playableCards').html("<div id='notify' class='alert alert-success'><button type='button' class='close' data-dismiss='alert' onclick='$(\"#notify\").remove()'>x</button><center>You are now the Judge!</center></div>");
-                                }
-                            break;
-                            case "drawCard":
-                                drawCard(data.card);
-                            break;
-                            case "discardCard":
-                                discardCard("player");
-                            break;
-                            case "playCard":
-                                discardCard(-1);
-                            break;
-                            case "playerChoice":
-                                addChoice(data.card, data.id);
-                            break;
-                            case "winningPick":
-                                activeUsers = data.gameState.users;
-                                newInfoPopup("New round in " + data.waitTime + " seconds.");
-                                reDrawScoreboard();
-                                winnerCard(data.player, JSON.parse(data.cardId));
-                            break;
-                            case "sync":
-                            break;
-                            case "newMessage":
-                                $('#newMessage').tmpl(data).appendTo('#message');
-                                $("#message").animate({scrollTop:$("#message")[0].scrollHeight}, 1000);
-                            break;
-                            default:
-                                message('{"clientAction":"Unknown Command"}');
                         }
-
-                    }
-                    socket.onclose = function() {
-                        message('{"clientAction":"Closed"}');
-                        
-                        bootbox.dialog("Uh oh... Looks like you have lost connection to the Game Coordinator.", [{
-                            "label" : "Retry",
-                            "class" : "btn-warning",
-                            "callback": function() {
-                                setTimeout("startGame()",15000);
-                            }
-                        }]);
-                        
-                    }
-                } catch(exception) {
-                    message('{"clientAction":"Error Connecting: ' + exception + '"}');
-                }
-            }
-
-            function joinRoom(id) {
-                var request = {};
-                request.action = "join";
-                request.room = id;
-                request.clientId = clientId;
-                request.clientName = clientName;
-                socket.send(JSON.stringify(request));
-            }
-
-            function createRoom() {
-                var request = {};
-                request.action = "createRoom";
-                request.clientId = clientId;
-                request.clientName = clientName;
-                socket.send(JSON.stringify(request));
-            }
-
-            function requestDrawCard() {
-                var request = {};
-                request.action = "requestDrawCard";
-                request.room = roomId;
-                request.clientId = clientId;
-                request.clientName = clientName;
-                socket.send(JSON.stringify(request));
-            }
-
-            function sendCardToJudge(cardId) {
-                var request = {};
-                request.action = "sendToJudge";
-                request.room = roomId;
-                request.clientId = clientId;
-                request.clientName = clientName;
-                request.card = cardId;
-                socket.send(JSON.stringify(request));
-            }
-
-            function winnerId(id, cardId) {
-                $('#playableCards').html("");
-                var request = {};
-                request.action = "pickWinner";
-                request.room = roomId;
-                request.clientId = clientId;
-                request.clientName = clientName;
-                request.card = cardId;
-                request.player = id;
-                socket.send(JSON.stringify(request));
-            }
-
-            function sync() {
-                var request = {};
-                request.action = "sync";
-                request.clientId = clientId;
-                request.clientName = clientName;
-                socket.send(JSON.stringify(request));
-            }
-
-            function adminStartGame() {
-                if ($("#adminStartGame").attr('disabled') == undefined) {
-                    var request = {};
-                    request.action = "startGame";
-                    request.room = roomId;
-                    request.clientId = clientId;
-                    request.clientName = clientName;
-                    socket.send(JSON.stringify(request));
-                }
-            }
-            
-            function adminStopGame() {
-                if ($("#adminStartGame").attr('disabled') == undefined) {
-                    var request = {};
-                    request.action = "stopGame";
-                    request.room = roomId;
-                    request.clientId = clientId;
-                    request.clientName = clientName;
-                    socket.send(JSON.stringify(request));
-                }
-            }
-
-            function sendMessage() {
-                var request = {};
-                request.action = "newMessage";
-                request.room = roomId;
-                request.clientId = clientId;
-                request.clientName = clientName;
-                request.text = $('#messageContent').val();
-                socket.send(JSON.stringify(request));
-                $('#messageContent').val("");
-            }
-            
-            function message(msg) {
-                console.log(JSON.parse(msg));
-            }
-
-            function newInfoPopup(msg) {
-                if (msg == undefined) {
-                    $('#popupAlert').html("");
-                } else {
-                    $('#popupAlert').html("<div class='alert alert-info'>" + msg + '<button type="button" class="close" data-dismiss="alert">x</button></div>');
-                }
-            }
-
-        </script>
-        <script>
-            var judgeCards = [];
-            var playCards = [];
-            var allPlay = [];
-            var allJudge = [];
-            var discard = [];
-            var currentHand = [];
-            var awesomePoints = [];
-            var cardsToJudge = [];
-            var playerToken = Math.random()*100;
-            var clientName = "guest" + ~~(playerToken*10000);
-            var shuffleSeed;
-            var canPlay = false;
-            var cardsPlayed = 0;
-            var howMany = 0;
-            var cardsInHand;
-            var deckLocation = "./apples.json";
-
-            $(document).ready(function() {
-                Math.seedrandom(shuffleSeed);
-                bootbox.prompt("What is your name?", "Cancel", "OK", function(result) {
-                    if (result) {
-                        clientName = result;
-                    }
-                    loadCards();
-                }, clientName);
-                
-                $("#messageContent").keyup(function(event){
-                    if(event.keyCode == 13){
-                        sendMessage();
-                    }
-                });                
-                
-            });
-            function loadCards() {
-                $.ajax({
-                    type:"GET",
-                    url:"./cards.json",
-                    dataType:"json",
-                    timeout:25000,
-                    success: function(data) {
-                        allPlay = data.white;
-                        allJudge = data.black;
-                        startGame()
-                    },
-                    error: function() {
-                        console.log("Error!");
-                    }
-                });
-            }
-
-            function addChoice(cardId, id) {
-                var cards = []
-                for (var x=0; x<cardId.length; x+=1) {
-                    cards.push(allPlay[cardId[x]]);
-                }
-                var cardInfo = {
-                    "rotate":0,
-                    "leftpad":0,
-                    "toppad":0,
-                    "text":cards.join(", "),
-                    "cardId":JSON.stringify(cardId),
-                    "type":"player",
-                    "playerId":id,
-                    "disabled":""
-                }
-                $("#pickCard").tmpl(cardInfo).appendTo("#playableCards");
-
-            }
-
-            function winnerCard(player,cardId) {
-                var cards = []
-                for (var x=0; x<cardId.length; x+=1) {
-                    cards.push(allPlay[cardId[x]]);
-                }
-                var cardInfo = {
-                    "rotate":0,
-                    "leftpad":~~(rotationValue(12342142134)*100),
-                    "toppad":~~(rotationValue(5649813156)*40+25),
-                    "text":cards.join(", "),
-                    "type":"player",
-                    "player":player,
-                    "disabled":""
-                }
-                $("#winnerCard").tmpl(cardInfo).appendTo("#judge");
-            }
-
-            function newJudgeCard(judgeCard) {
-                var nextCard = judgeCard
-                $("#judge").html("");
-                $("#discard").html("");
-                canPlay = true;
-                cardsPlayed = 0;
-                howMany = allJudge[nextCard].match(/_/g).length;
-                var cardinfo = {"text":allJudge[nextCard].replace(/_/g,'____________________')};
-                $("#judgeCard").tmpl(cardinfo).appendTo("#judge");
-                console.log(cardinfo);
-                discardCard();
-                reDrawHand();
-            }
-
-            function drawCard(cardId) {
-                var nextCard = cardId;
-                    if (currentHand.length < cardsInHand) {
-                        currentHand.push(nextCard);
-                        reDrawHand();
-                    } else if (currentHand >= cardsInHand) {
-                        console.log("Hand is full.");
-                    }
-                return nextCard;
-            }
-            
-            function discardCard(type) {
-                cardInfo = {
-                    "rotate":0,
-                    "leftpad":~~(rotationValue(12342142134)*100),
-                    "toppad":~~(rotationValue(5649813156)*40+25),
-                    "type":type
-                }
-                $("#discardCard").tmpl(cardInfo).appendTo("#discard");
-            }
-
-            function reDrawHand() {
-                if (!judge) {
-                    $('#playableCards').html("");
-                    var disabled = "disabled";
-                    if (canPlay)
-                        disabled = "";
-                    for (var x=0; x<currentHand.length; x+=1) {
-                        if (currentHand[x] == undefined)
-                            disabled = "disabled"
-                        var cardInfo = {
-                            "rotate":0,
-                            "leftpad":0,
-                            "toppad":0,
-                            "text":allPlay[currentHand[x]],
-                            "type":"player",
-                            "cardNum":x,
-                            "disabled":disabled
-                        }
-                        $("#playerCard").tmpl(cardInfo).appendTo("#playableCards");
                     }
                 }
             }
-
-            function reDrawScoreboard() {
-                $('#leaders').html("");
-                for (var x=0; x<activeUsers.length; x+=1) {
-                    var cardInfo = {'name':activeUsers[x]['name'],'score':activeUsers[x]['score']}
-                    $("#score").tmpl(cardInfo).appendTo("#leaders");
-                }
-            }
-
-            function discardCard(index) {
-                if (index == undefined) {
-                    type = "judge";
-                } else {
-                    if (index >= 0 && index < cardsInHand) {
-                        cardsPlayed += 1;
-                        cardsToJudge.push(currentHand[index]); 
-                        if (cardsPlayed >= howMany) {
-                            canPlay = false;
-                            sendCardToJudge(cardsToJudge);
-                            requestDrawCard();
-                            cardsToJudge = [];
-                        }
-                        currentHand.splice(index,1);
-                        reDrawHand();
-                    }
-                    type = "player";
-                }
-                cardInfo = {
-                    "rotate":0,
-                    "leftpad":~~(rotationValue(12342142134)*100),
-                    "toppad":~~(rotationValue(5649813156)*40+25),
-                    "type":type
-                }
-                $("#discardCard").tmpl(cardInfo).appendTo("#discard");
-            }
-
-            function rotationValue(seed) {
-                if (seed == undefined)
-                    seed = 712323412;
-                return new Date()*seed%100000/100000;
-            }
-        </script>
-
-        <script id='playerCard' type="text/x-jquery-tmpl">
-            <button class="btn btn-default btn-block" type="button" ${disabled} onclick="$(this).attr('disabled','true');discardCard(${cardNum})">${text}</button> 
-        </script>
         
-        <script id='pickCard' type="text/x-jquery-tmpl">
-            <button class="btn btn-large btn-block" type="button" onclick="winnerId('${playerId}','${cardId}')">${text}</button> 
-        </script>
-        
-        <script id='winnerCard' type="text/x-jquery-tmpl">
-            <div class="card player-card" style="top:25px;margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:22px;line-height:115%;position:absolute;">
-                <b>${text}</b><br><br>
-                --<b>${player}</b>
-            </div>
         </script>
 
-        <script id='newMessage' type="text/x-jquery-tmpl">
-            <dt>{{if textClass}}<span class="label label-${textClass}">${from}</span>{{else}}${from}{{/if}}</dt>
-            <dd>${text}</dd>
-        </script>
-        
-        <script id='score' type="text/x-jquery-tmpl">
-            <tr>
-                <td>${name}</td>
-                <td>${score}</td>
-            </tr>
-        </script>
-        
-        <script id='judgeCard' type="text/x-jquery-tmpl">
-            <div class="card judge-card">
-                <b>${text}</b>
-            </div>
-        </script>
-        
         <script id='discardCard' type="text/x-jquery-tmpl">
             <div class="card ${type}-card visible-desktop" style="margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:42px;line-height:115%;">
                 <b>Cards<br>of<br>Lunacy</b>
-            </div>
-        </script>
-
-        <script id="adminPanel" type="text/x-jquery-tmpl">
-            <div class="well">
-                <h4>Admin Panel</h4>
-                <center>
-                    <button id="adminStartGame" onclick="adminStartGame()" class="btn btn-success btn-mini ${start}">Start Game</button>
-                    <button id="adminStopGame" onclick="adminStopGame()" class="btn btn-danger btn-mini ${stop}">Stop Game</button>
-                </center>
             </div>
         </script>
     </head>
@@ -529,50 +117,40 @@
             </div>
         </div>
         <div class="container">
-            <div class="span4">
-                <div id="judge"></div>
-                <div id="discard"></div>
-                
-            </div>
-
-
-            <div class="span4">
-                <div id="popupAlert"></div>
-                <div id="playableCards"></div>
-            </div>
-
-            <div class="span3" id="wells">
+            <div class="span6 pull-right">
+               <div class="well">
+                   <center>
+                       <h3>Start Playing</h3>
+                       <hr>
+                       <div class="card judge-card" style="font-size:42px;line-height:115%;">
+                           <b>Cards<br>of<br>Lunacy</b>
+                       </div>
+                       <hr>
+                       <button class="btn btn-large btn-primary">Start a new game </button><br><br>
+                       <button class="btn btn-large btn-primary" onclick="getRoomId();">Join a friends game</button><br><br>
+                       <button class="btn btn-large btn-primary">View Current games</button><br><br>
+                   </center>
+               </div>
+           </div>
+           <div class="span5">
                 <div class="well">
-                    <h4>Leaderboard</h4>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Points</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaders">
-                            
-                        </tbody>
-                    </table>
+                    <h3>Cards of Lunacy</h3>
+                    <p>
+                        Welcome to Cards of Lunacy. Essentially this is just an online version of Cards Against Humanity(tm) that lets you play with your friends in realtime using Websockets.
+                    </p>
+                    <hr>
+                    <h3>How to Play</h3>
+                    <p>
+                        There are two decks of cards, a white deck and a black deck. Each person gets 10 white cards and will have 10 white cards until the deck runs out or cards.
+                        One black card is taken from the black deck and placed up so that everyone can see. Everyone but the one judging the round will place down what he or she thinks matches the black card the best.
+                        The judge that will be selected from the players in your room will pick a white card that best matches the black card. After the card is picked the player that put the white card will gain a point.
+                        The person at the end of the game with the most points is the winner.
+                    </p>
                 </div>
                 <div class="well">
-                    <div id="newGame">
-                        <center>
-                            <a id="shareLink"></a><br>
-                            <input type="text" class="input" id="shareLinkInput" />
-                        </center>
-                    </div>
-                </div>
-                <div class="well well-small" style="position:absolute;">
-                    <div id="chat">
-                        <dl id="message" style="max-height:150px;font-size:12px;overflow:auto;">
-                        </dl>
-                        <div class="input-append">
-                            <input type="text" id="messageContent" class="span2" placeholder="Send Message" />
-                            <button class="btn" onclick="sendMessage();">Send</button>
-                        </div>
-                    </div>
+                    <p>
+                        This game is much like Apples to Apples(tm) but is geared towards adults and has very offensive cards. If you are easily offended by anything in particular this game may not be for you.
+                    </p>
                 </div>
             </div>
         </div>
