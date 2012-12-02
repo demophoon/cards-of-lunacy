@@ -149,6 +149,9 @@ class StatsServerProtocol(WebSocketServerProtocol):
             if not(self.factory.clients[data['clientId']].currentInfo['activeRoom']):
                 try:
                     newRoomId = generateRoomId()
+                    if "roomId" in data:
+                        if data["roomId"] not in rooms:
+                            newRoomId = data['roomId']
                     response['action'] = "gameJoined"
                     response['roomId'] = newRoomId
                     response['gameState'] = {
@@ -280,13 +283,30 @@ class StatsBroadcaster(WebSocketServerFactory):
                         "action":"playerLeft",
                     }))
                 if len(rooms[client.currentInfo['activeRoom']]['users']) == 0:
-                    rooms = {k:v for k,v in rooms.items() if k=="roomId" and v==client.currentInfo['activeRoom']}
-                    print "Empty Room Removed"
+                    reactor.callLater(300, self.removeRoom, roomId=client.currentInfo['activeRoom'])
+                if rooms[client.currentInfo['activeRoom']]['judge'] == client.id:
+                    rooms[client.currentInfo['activeRoom']]['judgeIndex'] += 1
+                    if rooms[client.currentInfo['activeRoom']]['judgeIndex'] >= len(rooms[client.currentInfo['activeRoom']]['users']):
+                        rooms[client.currentInfo['activeRoom']]['judgeIndex'] = 0
+                    rooms[client.currentInfo['activeRoom']]['judge'] = rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id']
+                    for player in rooms[client.currentInfo['activeRoom']]['users']:
+                        self.clients[player['id']].sendMessage(json.dumps({
+                            "action":"newJudgeCard",
+                            "judge":rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id'],
+                            "judgeCard":rooms[client.currentInfo['activeRoom']]['judgeCard']
+                        }))
             self.clients = {k:v for k, v in self.clients.items() if not(k == client.id)}
             print "Client Unregistered: %s" % client.id
         for admin in self.administrators:
             admin.sendMessage(json.dumps({'action':'updateClients'}))
 
+    def removeRoom(self, roomId):
+        global rooms
+        if len(rooms[roomId]['users']) == 0:
+            rooms = {k:v for k,v in rooms.items() if k=="roomId" and v==roomId}
+            print "Empty Room Removed"
+        
+    
     def broadcast(self, msg):
         print "Broadcasting Message to all clients..."
         for client in self.clients:
@@ -299,7 +319,7 @@ def generateUserId(l=4):
     return cid
 
 def generateRoomId(l=4):
-    rid = ''.join(random.choice(string.letters + string.digits) for x in range(l))
+    rid = ''.join(random.choice(string.lowercase + string.digits) for x in range(l))
     while rid in rooms:
         rid = generateRoomId(l+1)
     return rid

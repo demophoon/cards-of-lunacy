@@ -68,6 +68,7 @@
             var activeUsers = [];
             var owner = false;
             var judge = false;
+            var judgeId = null;
             
             function startGame() {
                 try {
@@ -93,12 +94,12 @@
                                     joinRoom($.bbq.getState("roomId"));
                                     newInfoPopup("Wait for the next round...")
                                 } else {
-                                    createRoom();
+                                    createRoom($.bbq.getState("roomId"));
                                     newInfoPopup("Invite your friends to play!")
                                 }
                             break;
                             case "createRoom":
-                                createRoom();
+                                createRoom($.bbq.getState("roomId"));
                                 newInfoPopup("Invite your friends to play!")
                             break;
                             case "gameJoined":
@@ -129,6 +130,8 @@
                             case "newJudgeCard":
                                 newInfoPopup();
                                 newJudgeCard(data.judgeCard);
+                                judgeId = data.judge;
+                                reDrawScoreboard();
                                 if (data.judge == clientId) {
                                     $('#playableCards').html("<div id='notify' class='alert alert-success'><button type='button' class='close' data-dismiss='alert' onclick='$(\"#notify\").remove()'>x</button><center>You are now the Judge!</center></div>");
                                 }
@@ -188,11 +191,13 @@
                 socket.send(JSON.stringify(request));
             }
 
-            function createRoom() {
+            function createRoom(id) {
                 var request = {};
                 request.action = "createRoom";
                 request.clientId = clientId;
                 request.clientName = clientName;
+                if (id != undefined)
+                    request.roomId = id;
                 socket.send(JSON.stringify(request));
             }
 
@@ -429,7 +434,9 @@
             function reDrawScoreboard() {
                 $('#leaders').html("");
                 for (var x=0; x<activeUsers.length; x+=1) {
-                    var cardInfo = {'name':activeUsers[x]['name'],'score':activeUsers[x]['score']}
+                    var cardInfo = {'name':activeUsers[x]['name'],'score':activeUsers[x]['score'],'judge':false}
+                    if (judgeId == activeUsers[x]['id'])
+                        cardInfo['judge'] = true;
                     $("#score").tmpl(cardInfo).appendTo("#leaders");
                 }
             }
@@ -444,7 +451,9 @@
                         if (cardsPlayed >= howMany) {
                             canPlay = false;
                             sendCardToJudge(cardsToJudge);
-                            requestDrawCard();
+                            for (var x=0; x<cardsPlayed; x+=1) {
+                                requestDrawCard();
+                            }
                             cardsToJudge = [];
                         }
                         currentHand.splice(index,1);
@@ -490,7 +499,7 @@
         
         <script id='score' type="text/x-jquery-tmpl">
             <tr>
-                <td>${name}</td>
+                <td>{{if judge==true}}<span class="badge badge-info"><i class="icon-star icon-white"></i></span> {{/if}}${name}</td>
                 <td>${score}</td>
             </tr>
         </script>
@@ -522,7 +531,7 @@
         <div class="navbar navbar-inverse navbar-fixed-top">
             <div class="navbar-inner">
                 <div class="container">
-                    <a href="#" class="brand">Cards of Lunacy</a>
+                    <a href="index.html" class="brand">Cards of Lunacy</a>
                     <ul class="nav pull-right">
                         <li>
                             <a href="#">Help <i class="icon-question-sign icon-white"></i></a>

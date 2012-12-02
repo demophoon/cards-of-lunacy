@@ -76,15 +76,16 @@
         <script>
             var socket;
             var clientId;
-            var rooms = [];
+            var rooms = {};
 
-            function checkRoomStatus() {
-                //d
-            }
-            
             function getRoomId() {
+                socket.send(JSON.stringify({"action":"listRooms"}))
                 bootbox.prompt("What is the Room Id?", function(result) {
-                    checkRoomStatus(result);
+                    if (rooms.hasOwnProperty(result)) {
+                        joinGame(result);
+                    } else if (result != undefined) {
+                        bootbox.alert("Room does not exist.");
+                    }
                 });
             }
 
@@ -107,19 +108,7 @@
                         break;
                         case "roomsList":
                             rooms = JSON.parse(data.rooms);
-                            $("#roomsList").html("");
-                            for (var x in rooms) {
-                                console.log("--------------");
-                                console.log(rooms[x])
-                                var roomData = {};
-                                roomData['roomName'] = "Room " + rooms[x]['owner'];
-                                roomData['currentPlayers'] = rooms[x]['users'].length;
-                                roomData['maxPlayers'] = rooms[x]['options']['maxPlayers'];
-                                roomData['gameStatus'] = "Ongoing";
-                                roomData['roomId'] = x;
-                                roomData['ping'] = ~~rooms[x]['ping'];
-                                $("#roomRow").tmpl(roomData).appendTo("#roomsList");
-                            }
+                            drawRoomsList();
                         break;
                         default:
                             console.log("unknown command")
@@ -134,6 +123,20 @@
                 console.log(JSON.parse(msg));
             }
             
+            function drawRoomsList() {
+                $("#roomsList").html("");
+                for (var x in rooms) {
+                    var roomData = {};
+                    roomData['roomName'] = "Room " + x;
+                    roomData['currentPlayers'] = rooms[x]['users'].length;
+                    roomData['maxPlayers'] = rooms[x]['options']['maxPlayers'];
+                    roomData['gameStatus'] = "Ongoing";
+                    roomData['roomId'] = x;
+                    roomData['ping'] = ~~rooms[x]['ping'];
+                    $("#roomRow").tmpl(roomData).appendTo("#roomsList");
+                }
+            }
+
             function createGame(roomId) {
                 document.location.href="./game.html";
             }
@@ -142,6 +145,10 @@
                 document.location.href="./game.html#roomId=" + roomId;
             }
 
+            function hideCurrentRooms() {
+                $('#currentRooms').fadeOut(250);
+            }
+            
             function showCurrentRooms() {
                 $('#currentRooms').fadeIn(250);
                 socket.send(JSON.stringify({"action":"listRooms"}))
@@ -173,8 +180,9 @@
         <div id="currentRooms">
             <div class="container">
                 <div class="well">
+                    <a href="#" class="pull-right" onclick="hideCurrentRooms();"><i class="icon-remove"></i> Close</a>
                     <h3>Current Rooms</h3>
-                    <a href="#" class="pull-right">Refresh List <i class="icon-refresh"></i></a>
+                    <a href="#" class="pull-right" onclick="showCurrentRooms();">Refresh List <i class="icon-refresh"></i></a>
                     <table class="table table-hover table-bordered table-striped">
                         <thead>
                             <tr>
@@ -194,7 +202,7 @@
         <div class="navbar navbar-inverse navbar-fixed-top">
             <div class="navbar-inner">
                 <div class="container">
-                    <a href="#" class="brand">Cards of Lunacy</a>
+                    <a href="index.html" class="brand">Cards of Lunacy</a>
                     <ul class="nav pull-right">
                         <li>
                             <a href="#">Help <i class="icon-question-sign icon-white"></i></a>
@@ -214,7 +222,7 @@
                        </div>
                        <hr>
                        <button class="btn btn-large btn-primary" onclick="createGame();">Start a new game </button><br><br>
-                       <button class="btn btn-large btn-primary disabled" onclick="getRoomId();">Join a friends game</button><br><br>
+                       <button class="btn btn-large btn-primary" onclick="getRoomId();">Join a friends game</button><br><br>
                        <button class="btn btn-large btn-primary" onclick="showCurrentRooms();">View Current games</button><br><br>
                    </center>
                </div>
