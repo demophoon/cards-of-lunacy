@@ -7,6 +7,17 @@ import time
 import random
 import json
 import string
+import sys
+
+from twisted.python import log
+log.startLogging(open("./errors.log",'a'))
+
+def logging_handler(type, value, tb):
+    f=open('./errors.log','a')
+    fstr = "Uncaught exception: " + value + "\n" + tb
+    print fstr
+    f.write(fstr)
+    f.close()
 
 clients = {}
 rooms = {}
