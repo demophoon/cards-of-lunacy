@@ -53,6 +53,18 @@
                 box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
                 position:absolute;
             }
+            #currentRooms {
+                background:rgba(0,0,0,.9);
+                position:fixed;
+                top:0px;
+                left:0px;
+                height:100%;
+                width:100%;
+                display:none;
+            }
+            #currentRooms .well {
+                margin-top:120px;
+            }
         </style>
         <link href="./css/bootstrap-responsive.css" rel="stylesheet">
         <script type="text/javascript" src="./js/jquery.js"></script>
@@ -63,10 +75,11 @@
         <script type="text/javascript" src="./js/seedrandom.js"></script>
         <script>
             var socket;
+            var clientId;
             var rooms = [];
 
             function checkRoomStatus() {
-                d
+                //d
             }
             
             function getRoomId() {
@@ -76,24 +89,66 @@
             }
 
             function connectToGameCoordinator() {
-                try {
-                    var host = "ws://192.168.0.102:9876";
-                    socket = new WebSocket(host);
-                    message('{"clientAction":"Connecting..."}');
-                    socket.onopen = function() {
-                        message('{"clientAction":"Connected"}');
-                    }
-                    socket.onmessage = function(msg) {
-                        data = JSON.parse(msg.data);
-                        switch(data.action) {
-                            case "roomsList":
-                                rooms = data.rooms;
-                            break;
-                        }
+                var host = "ws://localhost:9876";
+                socket = new WebSocket(host);
+                message('{"clientAction":"Connecting..."}');
+                socket.onopen = function() {
+                    message('{"clientAction":"Connected"}');
+                }
+                socket.onmessage = function(msg) {
+                    data = JSON.parse(msg.data);
+                    console.log(data);
+                    switch(data.action) {
+                        case "ping":
+                            socket.send(JSON.stringify({"action":"pong"}))
+                        break;
+                        case "register":
+                            clientId = data.clientId;
+                        break;
+                        case "roomsList":
+                            rooms = JSON.parse(data.rooms);
+                            $("#roomsList").html("");
+                            for (var x in rooms) {
+                                console.log("--------------");
+                                console.log(rooms[x])
+                                var roomData = {};
+                                roomData['roomName'] = "Room " + rooms[x]['owner'];
+                                roomData['currentPlayers'] = rooms[x]['users'].length;
+                                roomData['maxPlayers'] = rooms[x]['options']['maxPlayers'];
+                                roomData['gameStatus'] = "Ongoing";
+                                roomData['roomId'] = x;
+                                roomData['ping'] = ~~rooms[x]['ping'];
+                                $("#roomRow").tmpl(roomData).appendTo("#roomsList");
+                            }
+                        break;
+                        default:
+                            console.log("unknown command")
+                        break;
                     }
                 }
+                socket.onclose = function() {
+                    message('{"clientAction":"Closed"}');
+                }
             }
-        
+            function message(msg) {
+                console.log(JSON.parse(msg));
+            }
+            
+            function createGame(roomId) {
+                document.location.href="./game.html";
+            }
+
+            function joinGame(roomId) {
+                document.location.href="./game.html#roomId=" + roomId;
+            }
+
+            function showCurrentRooms() {
+                $('#currentRooms').fadeIn(250);
+                socket.send(JSON.stringify({"action":"listRooms"}))
+            }
+            $(document).ready(function() {
+                connectToGameCoordinator();
+            })
         </script>
 
         <script id='discardCard' type="text/x-jquery-tmpl">
@@ -101,9 +156,41 @@
                 <b>Cards<br>of<br>Lunacy</b>
             </div>
         </script>
+
+        <script id="roomRow" type="text/x-jquery-tmpl">
+            <tr>
+                <td>${roomName}</td>
+                <td>${currentPlayers}/${maxPlayers}</td>
+                <td>${gameStatus}</td>
+                <td>${ping}ms</td>
+                <td><button class="btn btn-small btn-primary" onclick="joinGame('${roomId}')">Join Game</button></td>
+            </tr>
+        </script>
+
     </head>
     
     <body>
+        <div id="currentRooms">
+            <div class="container">
+                <div class="well">
+                    <h3>Current Rooms</h3>
+                    <a href="#" class="pull-right">Refresh List <i class="icon-refresh"></i></a>
+                    <table class="table table-hover table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Room Name</th>
+                                <th>Players</th>
+                                <th>Game State</th>
+                                <th>Ping</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="roomsList">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         <div class="navbar navbar-inverse navbar-fixed-top">
             <div class="navbar-inner">
                 <div class="container">
@@ -126,9 +213,9 @@
                            <b>Cards<br>of<br>Lunacy</b>
                        </div>
                        <hr>
-                       <button class="btn btn-large btn-primary">Start a new game </button><br><br>
-                       <button class="btn btn-large btn-primary" onclick="getRoomId();">Join a friends game</button><br><br>
-                       <button class="btn btn-large btn-primary">View Current games</button><br><br>
+                       <button class="btn btn-large btn-primary" onclick="createGame();">Start a new game </button><br><br>
+                       <button class="btn btn-large btn-primary disabled" onclick="getRoomId();">Join a friends game</button><br><br>
+                       <button class="btn btn-large btn-primary" onclick="showCurrentRooms();">View Current games</button><br><br>
                    </center>
                </div>
            </div>

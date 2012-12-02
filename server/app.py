@@ -173,6 +173,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         },
                         'newRound':True,
                         'judgeCard':None,
+                        'ping':-1,
                         'owner':data['clientId'],
                         'decks':{
                             'white':range(0,len(decks['white'])-1),
@@ -205,8 +206,10 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     self.factory.administrators.append(self)
                     print self.factory.administrators
         elif data['action'] == "listRooms":
-            if 'token' in data and data['token'] == adminToken:
-                self.sendMessage(json.dumps(rooms))
+            self.sendMessage(json.dumps({
+                "action":"roomsList",
+                "rooms":json.dumps(rooms),
+            }))
         elif data['action'] == "broadcastMessage":
             if 'token' in data and data['token'] == adminToken:
                 self.sendMessage(json.dumps(rooms))
@@ -216,6 +219,13 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         'from':data['from'],
                         'textClass':data['textClass'],
                     }))
+        
+        elif data['action'] == "pong":
+            self.currentInfo['ping'] = (time.time() - self.currentInfo['lastPingTime']) * 1000
+            if self.currentInfo['activeRoom'] in rooms:
+                for userId in rooms[self.currentInfo['activeRoom']]['users']:
+                    if self.factory.clients[userId['id']].currentInfo['ping'] > rooms[self.currentInfo['activeRoom']]['ping']:
+                        rooms[self.currentInfo['activeRoom']]['ping'] = self.factory.clients[userId['id']].currentInfo['ping']
 
         else:
             self.sendMessage(json.dumps({'action':'createRoom'}));
@@ -231,12 +241,14 @@ class StatsBroadcaster(WebSocketServerFactory):
         WebSocketServerFactory.__init__(self, url, debug=debug, debugCodePaths=debugCodePaths)
         self.clients = {}
         self.administrators = []
+        reactor.callLater(15, self.pingClients)
 
     def pingClients(self):
         pingCommand = {'action':'ping'}
-        for client in self.clients:
-            self.clients[client.peerstr]['lastping'] = time.time()
-            client.sendMessage(json.dumps(pingCommand))
+        for clientKey in self.clients:
+            self.clients[clientKey].currentInfo['lastPingTime'] = time.time()
+            self.clients[clientKey].sendMessage(json.dumps(pingCommand))
+        reactor.callLater(15, self.pingClients)
         
     def register(self, client):
         newClientId = generateUserId()
@@ -246,6 +258,8 @@ class StatsBroadcaster(WebSocketServerFactory):
             "clientName":None,
             "adminTokenCheck":False,
             "hand":[],
+            "ping":-1,
+            "lastPingTime":time.time(),
         }
         self.clients[newClientId] = client
         client.sendMessage(json.dumps({"action":"register","clientId":client.id}))

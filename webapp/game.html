@@ -71,7 +71,7 @@
             
             function startGame() {
                 try {
-                    var host = "ws://192.168.0.102:9876";
+                    var host = "ws://localhost:9876";
                     socket = new WebSocket(host);
                     message('{"clientAction":"Connecting..."}');
                     socket.onopen = function() {
@@ -84,6 +84,9 @@
                         message(msg.data);
                         data = JSON.parse(msg.data);
                         switch (data.action) {
+                            case "ping":
+                                socket.send(JSON.stringify({"action":"pong"}))
+                            break;
                             case "register":
                                 clientId = data.clientId;
                                 if ($.bbq.getState("roomId")) {
@@ -106,7 +109,7 @@
                                 roomId = data.roomId;
                                 $.bbq.pushState({'roomId':roomId});
                                 reDrawScoreboard();
-                                $('#shareLink').attr('href','./index.html#roomId=' + data.roomId).html("Invitation Link");
+                                $('#shareLink').attr('href',document.location.href).html("Invitation Link");
                                 $('#shareLinkInput').val(document.location.href);
                                 for (var x=0; x<cardsInHand; x+=1) {
                                     requestDrawCard();
