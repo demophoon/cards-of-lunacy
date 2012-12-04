@@ -38,6 +38,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
         if 'room' in data:
             if data['room'] in rooms:
                 room = rooms[data['room']]
+        if 'room' in data:
             if data['action'] == "join":
                 if data['room'] in rooms:
                     if self.factory.clients[data['clientId']].currentInfo['activeRoom'] == None:
@@ -92,7 +93,7 @@ class StatsServerProtocol(WebSocketServerProtocol):
                             room['decks']['black'] = range(0,len(decks['black'])-1)
                         room["judgeCard"] = room['decks']['black'].pop(random.choice(range(len(room['decks']['black']))))
                     rooms[data['room']]['judgeIndex'] += 1
-                    if rooms[data['room']]['judgeIndex'] > len(rooms[data['room']]['users']):
+                    if rooms[data['room']]['judgeIndex'] > len(rooms[data['room']]['users'])-1:
                         rooms[data['room']]['judgeIndex'] = 0
                     rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
                     for player in rooms[data['room']]['users']:
@@ -305,7 +306,7 @@ class StatsBroadcaster(WebSocketServerFactory):
                     reactor.callLater(300, self.removeRoom, roomId=client.currentInfo['activeRoom'])
                 if rooms[client.currentInfo['activeRoom']]['judge'] == client.id:
                     rooms[client.currentInfo['activeRoom']]['judgeIndex'] += 1
-                    if rooms[client.currentInfo['activeRoom']]['judgeIndex'] >= len(rooms[client.currentInfo['activeRoom']]['users']):
+                    if rooms[client.currentInfo['activeRoom']]['judgeIndex'] > len(rooms[client.currentInfo['activeRoom']]['users'])-1:
                         rooms[client.currentInfo['activeRoom']]['judgeIndex'] = 0
                     rooms[client.currentInfo['activeRoom']]['judge'] = rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id']
                     for player in rooms[client.currentInfo['activeRoom']]['users']:
