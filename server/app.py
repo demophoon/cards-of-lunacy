@@ -95,13 +95,14 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     rooms[data['room']]['judgeIndex'] += 1
                     if rooms[data['room']]['judgeIndex'] > len(rooms[data['room']]['users'])-1:
                         rooms[data['room']]['judgeIndex'] = 0
-                    rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
-                    for player in rooms[data['room']]['users']:
-                        self.factory.clients[player['id']].sendMessage(json.dumps({
-                            "action":"newJudgeCard",
-                            "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
-                            "judgeCard":room['judgeCard']
-                        }))
+                    if len(rooms[client.currentInfo['activeRoom']]['users']) > 0:
+                        rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
+                        for player in rooms[data['room']]['users']:
+                            self.factory.clients[player['id']].sendMessage(json.dumps({
+                                "action":"newJudgeCard",
+                                "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
+                                "judgeCard":room['judgeCard']
+                            }))
                     rooms[data['room']]['options']['open'] = False
                     rooms[data['room']]['options']['seedAdvance'] += 1
                 else:
@@ -308,13 +309,14 @@ class StatsBroadcaster(WebSocketServerFactory):
                     rooms[client.currentInfo['activeRoom']]['judgeIndex'] += 1
                     if rooms[client.currentInfo['activeRoom']]['judgeIndex'] > len(rooms[client.currentInfo['activeRoom']]['users'])-1:
                         rooms[client.currentInfo['activeRoom']]['judgeIndex'] = 0
-                    rooms[client.currentInfo['activeRoom']]['judge'] = rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id']
-                    for player in rooms[client.currentInfo['activeRoom']]['users']:
-                        self.clients[player['id']].sendMessage(json.dumps({
-                            "action":"newJudgeCard",
-                            "judge":rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id'],
-                            "judgeCard":rooms[client.currentInfo['activeRoom']]['judgeCard']
-                        }))
+                    if len(rooms[client.currentInfo['activeRoom']]['users']) > 0:
+                        rooms[client.currentInfo['activeRoom']]['judge'] = rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id']
+                        for player in rooms[client.currentInfo['activeRoom']]['users']:
+                            self.clients[player['id']].sendMessage(json.dumps({
+                                "action":"newJudgeCard",
+                                "judge":rooms[client.currentInfo['activeRoom']]['users'][rooms[client.currentInfo['activeRoom']]['judgeIndex']]['id'],
+                                "judgeCard":rooms[client.currentInfo['activeRoom']]['judgeCard']
+                            }))
             self.clients = {k:v for k, v in self.clients.items() if not(k == client.id)}
             print "Client Unregistered: %s" % client.id
         for admin in self.administrators:
