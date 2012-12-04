@@ -86,21 +86,21 @@ class StatsServerProtocol(WebSocketServerProtocol):
 
             elif data['action'] == "startGame":
                 if data['clientId'] == adminToken or self.factory.clients[data['clientId']].peerstr == self.peerstr:
-                    rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
                     if room["newRound"]:
                         room["newRound"] = False
                         if len(room['decks']['black']) <= 0:
                             room['decks']['black'] = range(0,len(decks['black'])-1)
                         room["judgeCard"] = room['decks']['black'].pop(random.choice(range(len(room['decks']['black']))))
+                    rooms[data['room']]['judgeIndex'] += 1
+                    if rooms[data['room']]['judgeIndex'] > len(rooms[data['room']]['users']):
+                        rooms[data['room']]['judgeIndex'] = 0
+                    rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
                     for player in rooms[data['room']]['users']:
                         self.factory.clients[player['id']].sendMessage(json.dumps({
                             "action":"newJudgeCard",
                             "judge":rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id'],
                             "judgeCard":room['judgeCard']
                         }))
-                    rooms[data['room']]['judgeIndex'] += 1
-                    if rooms[data['room']]['judgeIndex'] >= len(rooms[data['room']]['users']):
-                        rooms[data['room']]['judgeIndex'] = 0
                     rooms[data['room']]['options']['open'] = False
                     rooms[data['room']]['options']['seedAdvance'] += 1
                 else:
@@ -295,7 +295,7 @@ class StatsBroadcaster(WebSocketServerFactory):
             self.administrators[:] = [x for x in self.administrators if not(x == client)]
         if client.id in self.clients:
             if client.currentInfo['activeRoom']:
-                rooms[client.currentInfo['activeRoom']]['users'][:] = [x for x in rooms[client.currentInfo['activeRoom']]['users'] if not(x['id'] == client.id)]
+                rooms[client.currentInfo['activeRoom']]['users'] = [x for x in rooms[client.currentInfo['activeRoom']]['users'] if not(x['id'] == client.id)]
                 for player in rooms[client.currentInfo['activeRoom']]['users']:
                     self.clients[player['id']].sendMessage(json.dumps({
                         "gameState":rooms[client.currentInfo['activeRoom']],
