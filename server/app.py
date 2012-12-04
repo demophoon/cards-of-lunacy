@@ -10,14 +10,7 @@ import string
 import sys
 
 from twisted.python import log
-log.startLogging(open("./errors.log",'a'))
-
-def logging_handler(type, value, tb):
-    f=open('./errors.log','a')
-    fstr = "Uncaught exception: " + value + "\n" + tb
-    print fstr
-    f.write(fstr)
-    f.close()
+#log.startLogging(open("./errors.log",'a'))
 
 clients = {}
 rooms = {}
@@ -85,6 +78,8 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     self.sendMessage(json.dumps({'action':'createRoom'}))
                     
             elif data['action'] == "requestDrawCard":
+                if len(room['decks']['white']) <= 0:
+                    room['decks']['white'] = range(0,len(decks['white'])-1)
                 nextCard = room['decks']['white'].pop(random.choice(range(len(room['decks']['white']))))
                 print nextCard, decks['white'][nextCard]
                 self.factory.clients[data['clientId']].sendMessage(json.dumps({"action":"drawCard","card":nextCard}))
@@ -94,6 +89,8 @@ class StatsServerProtocol(WebSocketServerProtocol):
                     rooms[data['room']]['judge'] = rooms[data['room']]['users'][rooms[data['room']]['judgeIndex']]['id']
                     if room["newRound"]:
                         room["newRound"] = False
+                        if len(room['decks']['black']) <= 0:
+                            room['decks']['black'] = range(0,len(decks['black'])-1)
                         room["judgeCard"] = room['decks']['black'].pop(random.choice(range(len(room['decks']['black']))))
                     for player in rooms[data['room']]['users']:
                         self.factory.clients[player['id']].sendMessage(json.dumps({
@@ -121,25 +118,26 @@ class StatsServerProtocol(WebSocketServerProtocol):
                         self.factory.clients[player["id"]].sendMessage(json.dumps({'action':'discardCard'}))
                     
             elif data['action'] == "pickWinner":
-                room["newRound"] = True
-                for x in range(len(rooms[data['room']]['users'])):
-                    print rooms[data['room']]['users'][x]['id'], data['player']
-                    if rooms[data['room']]['users'][x]['id'] == data['player']:
-                        rooms[data['room']]['users'][x]['score'] += 1
-                for player in rooms[data['room']]['users']:
-                    self.factory.clients[player['id']].sendMessage(json.dumps({
-                        'action':'winningPick',
-                        'player':self.factory.clients[data['player']].currentInfo['clientName'],
-                        'cardId':data['card'],
-                        'gameState':rooms[data['room']],
-                        'waitTime':10
-                    }))
-                reactor.callLater(10, self.onMessage, msg=json.dumps({
-                    "action":"startGame",
-                    "room":data['room'],
-                    "clientId":adminToken,
-                    "clientName":"admin",
-                }), binary=False)
+                if self.id == room['judge'] or data['clientId'] == adminToken:
+                    room["newRound"] = True
+                    for x in range(len(rooms[data['room']]['users'])):
+                        print rooms[data['room']]['users'][x]['id'], data['player']
+                        if rooms[data['room']]['users'][x]['id'] == data['player']:
+                            rooms[data['room']]['users'][x]['score'] += 1
+                    for player in rooms[data['room']]['users']:
+                        self.factory.clients[player['id']].sendMessage(json.dumps({
+                            'action':'winningPick',
+                            'player':self.factory.clients[data['player']].currentInfo['clientName'],
+                            'cardId':data['card'],
+                            'gameState':rooms[data['room']],
+                            'waitTime':10
+                        }))
+                    reactor.callLater(10, self.onMessage, msg=json.dumps({
+                        "action":"startGame",
+                        "room":data['room'],
+                        "clientId":adminToken,
+                        "clientName":"admin",
+                    }), binary=False)
 
             elif data['action'] == "newMessage":
                 if self.currentInfo['clientName'] == None:
@@ -224,6 +222,16 @@ class StatsServerProtocol(WebSocketServerProtocol):
                 "action":"roomsList",
                 "rooms":json.dumps(rooms),
             }))
+        elif data['action'] == "kickPlayer":
+            print "kicking..."
+            if data['token'] == adminToken:
+                kickCommand = {}
+                kickCommand['action'] = "kick"
+                if 'reason' in data:
+                    kickCommand['reason'] = data['reason']
+                self.factory.clients[data['playerId']].sendMessage(json.dumps(kickCommand))
+                self.factory.clients = {k:v for k, v in self.factory.clients.items() if not(k == data['playerId'])}
+        
         elif data['action'] == "broadcastMessage":
             if 'token' in data and data['token'] == adminToken:
                 self.sendMessage(json.dumps(rooms))

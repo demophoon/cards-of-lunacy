@@ -66,7 +66,7 @@
 
             function startGame() {
                 try {
-                    var host = "ws://192.168.0.102:9876";
+                    var host = "ws://localhost:9876";
                     socket = new WebSocket(host);
                     message('{"clientAction":"Connecting..."}');
                     socket.onopen = function() {
@@ -164,7 +164,9 @@
                                 var fstr = "";
                                 for (var x=0; x<data.clients.length; x+=1) {
                                     fstr += "<tr><td>" + data.clients[x].clientId + "</td><td>" + data.clients[x].clientName + "</td>"
-                                    fstr += "<td>" + data.clients[x].activeRoom + "</td><td>" + data.clients[x].peerstr + "</td></tr>";
+                                    fstr += "<td>" + data.clients[x].activeRoom + "</td><td>" + data.clients[x].peerstr + "</td>";
+                                    escapedKickStatement = "kickUser(\x22" + data.clients[x].clientId + "\x22,\x22" + data.clients[x].activeRoom + "\x22);";
+                                    fstr += "<td><button onclick='"+ escapedKickStatement +"'>Kick User</button></td></tr>";
                                 }
                                 $('#users').html(fstr);
                             break;
@@ -697,6 +699,22 @@
                 request.token = adminToken;
                 socket.send(JSON.stringify(request));
             }
+            
+            function kickUser(userId, roomId) {
+                
+                bootbox.prompt("Kick Reason?", "None", "OK", function(result) {
+                    var request = {};
+                    request.action = "kickPlayer";
+                    request.token = adminToken;
+                    request.playerId = userId;
+                    request.clientId = clientId;
+                    if (result) {
+                        request.reason = result;
+                    }
+                    socket.send(JSON.stringify(request));
+                },"");
+            }
+            
         </script>
     </body>
 </html>

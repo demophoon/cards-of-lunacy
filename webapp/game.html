@@ -69,6 +69,7 @@
             var owner = false;
             var judge = false;
             var judgeId = null;
+            var kicked = "";
             
             function startGame() {
                 try {
@@ -85,6 +86,12 @@
                         message(msg.data);
                         data = JSON.parse(msg.data);
                         switch (data.action) {
+                            case "kick":
+                                kicked = " ";
+                                if (data.hasOwnProperty("reason"))
+                                    kicked = "Reason: " + data.reason;
+                                setTimeout("socket.close();",500);
+                            break;
                             case "ping":
                                 socket.send(JSON.stringify({"action":"pong"}))
                             break;
@@ -128,6 +135,8 @@
                                 reDrawScoreboard();
                             break;
                             case "newJudgeCard":
+                                canPlay = true;
+                                reDrawHand();
                                 newInfoPopup();
                                 newJudgeCard(data.judgeCard);
                                 judgeId = data.judge;
@@ -150,6 +159,8 @@
                             break;
                             case "winningPick":
                                 activeUsers = data.gameState.users;
+                                canPlay = false;
+                                reDrawHand();
                                 newInfoPopup("New round in " + data.waitTime + " seconds.");
                                 reDrawScoreboard();
                                 winnerCard(data.player, JSON.parse(data.cardId));
@@ -167,14 +178,24 @@
                     }
                     socket.onclose = function() {
                         message('{"clientAction":"Closed"}');
-                        
-                        bootbox.dialog("Uh oh... Looks like you have lost connection to the Game Coordinator.", [{
-                            "label" : "Retry",
-                            "class" : "btn-warning",
-                            "callback": function() {
-                                setTimeout("startGame()",15000);
-                            }
-                        }]);
+                        if (kicked == "") {
+                            bootbox.dialog("Uh oh... Looks like you have lost connection to the Game Coordinator.", [{
+                                "label" : "Retry",
+                                "class" : "btn-warning",
+                                "callback": function() {
+                                    setTimeout("startGame()",15000);
+                                }
+                            }]);
+                        } else {
+                            bootbox.dialog("You have been kicked from the game. " + kicked, [{
+                                "label" : "Okay",
+                                "class" : "btn-danger",
+                                "callback": function() {
+                                    document.location.href="./index.html";
+                                }
+                            }]);
+                    }
+
                         
                     }
                 } catch(exception) {
@@ -222,6 +243,8 @@
 
             function winnerId(id, cardId) {
                 $('#playableCards').html("");
+                canPlay = false;
+                reDrawHand();
                 var request = {};
                 request.action = "pickWinner";
                 request.room = roomId;
@@ -308,7 +331,7 @@
                 Math.seedrandom(shuffleSeed);
                 bootbox.prompt("What is your name?", "Cancel", "OK", function(result) {
                     if (result) {
-                        clientName = result;
+                        clientName = result.slice(0,16);
                     }
                     loadCards();
                 }, clientName);
@@ -550,7 +573,17 @@
 
             <div class="span4">
                 <div id="popupAlert"></div>
-                <div id="playableCards"></div>
+                <div id="playableCards" style="margin-top:10px;"></div>
+                <div class="well well-small" style="margin-top:10px;">
+                    <div id="chat">
+                        <dl id="message" style="width:auto;min-height:50px;max-height:150px;font-size:12px;overflow:auto;">
+                        </dl>
+                        <div class="input-append">
+                            <input type="text" id="messageContent" class="span3" placeholder="Send Message" />
+                            <button class="btn" onclick="sendMessage();">Send</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="span3" id="wells">
@@ -574,16 +607,6 @@
                             <a id="shareLink"></a><br>
                             <input type="text" class="input" id="shareLinkInput" />
                         </center>
-                    </div>
-                </div>
-                <div class="well well-small" style="position:absolute;">
-                    <div id="chat">
-                        <dl id="message" style="max-height:150px;font-size:12px;overflow:auto;">
-                        </dl>
-                        <div class="input-append">
-                            <input type="text" id="messageContent" class="span2" placeholder="Send Message" />
-                            <button class="btn" onclick="sendMessage();">Send</button>
-                        </div>
                     </div>
                 </div>
             </div>
