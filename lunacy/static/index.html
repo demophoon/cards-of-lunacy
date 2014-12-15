@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Starter Page</title>
+    </head>
+    <body>
+        <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/sockjs-client/0.3.4/sockjs.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+
+            var sock = new SockJS('/api/play');
+
+            var init_room = function(options) {
+                console.log(options);
+                var person = prompt("Enter your name", "Britt");
+                create_player(person, options['room_id']);
+            }
+
+            var init_player = function(options) {
+                console.log(options);
+            }
+
+            var create_room = function() {
+                sock.send({'action': 'init_room'});
+            }
+
+            var create_player = function(name, room_id) {
+                sock.send({'action': 'init_player', 'alias': name, 'room_id': room_id});
+            }
+
+            var start_room = function() {
+                sock.send({'action': 'start_room'});
+            }
+
+            sock.onopen = function() {
+                console.log('open');
+            };
+            sock.onmessage = function(e) {
+                payload = JSON.parse(e.data);
+                actions = {
+                    'init_room': init_room,
+                    'init_player': init_player,
+                    'log': console.log,
+                }
+                if (payload.hasOwnProperty('action') && actions.hasOwnProperty(payload['action'])) {
+                    actions[payload['action']](payload);
+                } else {
+                    console.log(payload);
+                }
+            };
+            sock.onclose = function() {
+                console.log('close');
+            };
+
+            sock._send = sock.send;
+
+            sock.send = function(payload) {
+                sock._send(JSON.stringify(payload));
+            }
+
+        </script>
+    </body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+        <link href="./css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body {
+                padding-top:60px;
+                background:url(./img/bg.gif);
+            }
+            .player-card {
+                background:url(./img/playerbg.gif);
+                color:#000;
+            }
+            .judge-card {
+                background:url(./img/judgebg.gif);
+                color:#fff;
+                margin:0px auto;
+            }
+            .card {
+                border:2px solid #333;
+                height:250px;
+                width:179px;
+                padding:10px;
+                font-weight:bold;
+                text-align:left;
+                -webkit-border-radius: 10px;
+                -moz-border-radius: 10px;
+                -webkit-box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                -webkit-font-smoothing:subpixel-antialiased;
+                border-radius: 10px;
+                -webkit-animation: cardFall .5s;
+                overflow:none;
+            }
+            
+            @-webkit-keyframes cardFall {
+                from {
+                    opacity:.25;
+                    -webkit-transform: scale(1.5,1.5) translate(25px,50px) rotate(-15deg);
+                }
+                to {
+                    opacity:1;
+                    -webkit-transform: scale(1,1) translate(0px,0px) rotate(0deg);
+                }
+            }
+
+            .mid {
+                text-align:center;
+            }
+            #discard div {
+                -webkit-box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                box-shadow:  0px 0px 5px 1px rgba(0, 0, 0, .5);
+                position:absolute;
+            }
+            #currentRooms {
+                background:rgba(0,0,0,.9);
+                position:fixed;
+                top:0px;
+                left:0px;
+                height:100%;
+                width:100%;
+                display:none;
+            }
+            #currentRooms .well {
+                margin-top:120px;
+            }
+        </style>
+        <link href="./css/bootstrap-responsive.css" rel="stylesheet">
+        <script type="text/javascript" src="./js/jquery.js"></script>
+        <script type="text/javascript" src="./js/jquery.tmpl.min.js"></script>
+        <script type="text/javascript" src="./js/jquery-bbq.min.js"></script>
+        <script type="text/javascript" src="./js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="./js/bootbox.min.js"></script>
+        <script type="text/javascript" src="./js/seedrandom.js"></script>
+        <script>
+            var socket;
+            var clientId;
+            var rooms = {};
+
+            function getRoomId() {
+                socket.send(JSON.stringify({"action":"listRooms"}))
+                bootbox.prompt("What is the Room Id?", function(result) {
+                    if (rooms.hasOwnProperty(result)) {
+                        joinGame(result);
+                    } else if (result != undefined) {
+                        bootbox.alert("Room does not exist.");
+                    }
+                });
+            }
+
+            function connectToGameCoordinator() {
+                var host = "ws://localhost:9876";
+                socket = new WebSocket(host);
+                message('{"clientAction":"Connecting..."}');
+                socket.onopen = function() {
+                    message('{"clientAction":"Connected"}');
+                }
+                socket.onmessage = function(msg) {
+                    data = JSON.parse(msg.data);
+                    console.log(data);
+                    switch(data.action) {
+                        case "ping":
+                            socket.send(JSON.stringify({"action":"pong"}))
+                        break;
+                        case "register":
+                            clientId = data.clientId;
+                        break;
+                        case "roomsList":
+                            rooms = JSON.parse(data.rooms);
+                            drawRoomsList();
+                        break;
+                        default:
+                            console.log("unknown command")
+                        break;
+                    }
+                }
+                socket.onclose = function() {
+                    message('{"clientAction":"Closed"}');
+                }
+            }
+            function message(msg) {
+                console.log(JSON.parse(msg));
+            }
+            
+            function drawRoomsList() {
+                $("#roomsList").html("");
+                for (var x in rooms) {
+                    var roomData = {};
+                    roomData['roomName'] = "Room " + x;
+                    roomData['currentPlayers'] = rooms[x]['users'].length;
+                    roomData['maxPlayers'] = rooms[x]['options']['maxPlayers'];
+                    roomData['gameStatus'] = "Ongoing";
+                    roomData['roomId'] = x;
+                    roomData['ping'] = ~~rooms[x]['ping'];
+                    $("#roomRow").tmpl(roomData).appendTo("#roomsList");
+                }
+            }
+
+            function createGame(roomId) {
+                document.location.href="./game.html";
+            }
+
+            function joinGame(roomId) {
+                document.location.href="./game.html#roomId=" + roomId;
+            }
+
+            function hideCurrentRooms() {
+                $('#currentRooms').fadeOut(250);
+            }
+            
+            function showCurrentRooms() {
+                $('#currentRooms').fadeIn(250);
+                socket.send(JSON.stringify({"action":"listRooms"}))
+            }
+            $(document).ready(function() {
+                connectToGameCoordinator();
+            })
+        </script>
+
+        <script id='discardCard' type="text/x-jquery-tmpl">
+            <div class="card ${type}-card visible-desktop" style="margin-left:${leftpad}px;margin-top:${toppad}px;-webkit-transform: rotate(${rotate}deg);-moz-transform: rotate(${rotate}deg);font-size:42px;line-height:115%;">
+                <b>Cards<br>of<br>Lunacy</b>
+            </div>
+        </script>
+
+        <script id="roomRow" type="text/x-jquery-tmpl">
+            <tr>
+                <td>${roomName}</td>
+                <td>${currentPlayers}/${maxPlayers}</td>
+                <td>${gameStatus}</td>
+                <td>${ping}ms</td>
+                <td><button class="btn btn-small btn-primary" onclick="joinGame('${roomId}')">Join Game</button></td>
+            </tr>
+        </script>
+
+    </head>
+    
+    <body>
+        <div id="currentRooms">
+            <div class="container">
+                <div class="well">
+                    <a href="#" class="pull-right" onclick="hideCurrentRooms();"><i class="icon-remove"></i> Close</a>
+                    <h3>Current Rooms</h3>
+                    <a href="#" class="pull-right" onclick="showCurrentRooms();">Refresh List <i class="icon-refresh"></i></a>
+                    <table class="table table-hover table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>Room Name</th>
+                                <th>Players</th>
+                                <th>Game State</th>
+                                <th>Ping</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="roomsList">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="navbar navbar-inverse navbar-fixed-top">
+            <div class="navbar-inner">
+                <div class="container">
+                    <a href="index.html" class="brand">Cards of Lunacy</a>
+                    <ul class="nav pull-right">
+                        <li>
+                            <a href="#">Help <i class="icon-question-sign icon-white"></i></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="span6 pull-right">
+               <div class="well">
+                   <center>
+                       <h3>Start Playing</h3>
+                       <hr>
+                       <div class="card judge-card" style="font-size:42px;line-height:115%;">
+                           <b>Cards<br>of<br>Lunacy</b>
+                       </div>
+                       <hr>
+                       <button class="btn btn-large btn-primary" onclick="createGame();">Start a new game </button><br><br>
+                       <button class="btn btn-large btn-primary" onclick="getRoomId();">Join a friends game</button><br><br>
+                       <button class="btn btn-large btn-primary" onclick="showCurrentRooms();">View Current games</button><br><br>
+                   </center>
+               </div>
+           </div>
+           <div class="span5">
+                <div class="well">
+                    <h3>Cards of Lunacy</h3>
+                    <p>
+                        Welcome to Cards of Lunacy. Essentially this is just an online version of Cards Against Humanity(tm) that lets you play with your friends in realtime using Websockets.
+                    </p>
+                    <hr>
+                    <h3>How to Play</h3>
+                    <p>
+                        There are two decks of cards, a white deck and a black deck. Each person gets 10 white cards and will have 10 white cards until the deck runs out or cards.
+                        One black card is taken from the black deck and placed up so that everyone can see. Everyone but the one judging the round will place down what he or she thinks matches the black card the best.
+                        The judge that will be selected from the players in your room will pick a white card that best matches the black card. After the card is picked the player that put the white card will gain a point.
+                        The person at the end of the game with the most points is the winner.
+                    </p>
+                </div>
+                <div class="well">
+                    <p>
+                        This game is much like Apples to Apples(tm) but is geared towards adults and has very offensive cards. If you are easily offended by anything in particular this game may not be for you.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="navbar navbar-inverse navbar-fixed-bottom">
+            <div class="navbar-inner">
+                <div class="container">
+                    <ul class="nav pull-right">
+                        <li>
+                            <a href="http://www.cardsagainsthumanity.com">Based off of <u>Cards Against Humanity(tm)</u></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
