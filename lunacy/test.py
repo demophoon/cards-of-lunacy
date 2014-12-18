@@ -7,10 +7,10 @@ players = None
 def play_cards(player):
     judge_card = player.room.judge_card
     played_cards = player._hand[0:max(1, judge_card.count("_"))]
-    print "Player %s played %s" % (
-        player.alias,
-        str(played_cards),
-    )
+    # print "Player %s played %s" % (
+    #     player.alias,
+    #     str(played_cards),
+    # )
     player.play_cards(played_cards)
 
 
@@ -42,6 +42,10 @@ def main():
     play_cards(players[0])
     play_cards(players[1])
     play_cards(players[2])
+
+    import pprint;
+    print "Room State:"
+    pprint.pprint(room.state(True))
 
     players[0].vote_for_cards(1)
     players[1].vote_for_cards(0)

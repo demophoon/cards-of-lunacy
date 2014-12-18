@@ -5,45 +5,120 @@
         <title>Starter Page</title>
     </head>
     <body>
+
+        <input data-bind='value: alias' />
+        <div>
+            Points: <span data-bind='text: points'></span>
+        </div>
+        <table border="0" cellspacing="5" cellpadding="5">
+            <thead>
+                <tr><th>Cards</th></tr>
+            </thead>
+            <tbody data-bind="foreach: hand">
+                <tr><td data-bind="text: $data"></td></tr>
+            </tbody>
+        </table>
+
+
+        <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.2/jquery.min.js"></script>
+        <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.2.0/knockout-min.js"></script>
         <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/sockjs-client/0.3.4/sockjs.min.js"></script>
+
         <script type="text/javascript" charset="utf-8">
 
             var sock = new SockJS('/api/play');
 
-            var init_room = function(options) {
-                console.log(options);
-                var person = prompt("Enter your name", "Britt");
-                create_player(person, options['room_id']);
-            }
+            // Response functions
+            var sock_response = {
+                room: {
+                    init: function(options) {
+                        ViewModel.room_id = options['id']
+                    },
+                    update_state: function(options) {
+                        console.log("Room state updated");
+                        var state = options.state;
+                        ViewModel.id = state.id;
+                        ViewModel.game.judge_card(state.judge_card);
+                        ViewModel.game.hand(state.hand);
+                        ViewModel.game.players(state.players);
+                    }
+                },
+                player: {
+                    init: function(options) {
+                    },
+                    update_hand: function(options) {
+                        ViewModel.hand(options.hand);
+                    },
+                },
+                util: {
+                    log: function(options) {
+                        console.log(options.message);
+                    },
+                    error: function(options) {
+                        console.error(options.message);
+                    }
+                },
+            };
 
-            var init_player = function(options) {
-                console.log(options);
-            }
 
-            var create_room = function() {
-                sock.send({'action': 'init_room'});
-            }
+            // Player Send Actions
+            var player = {
+                alias: function(name) {
+                    sock.send({ action: 'set_alias', alias: name });
+                },
+                join: function(room_id) {
+                    sock.send({ action: 'join_room', room_id: room_id });
+                },
+                part: function() {
+                    sock.send({ action: 'part_room' });
+                },
+                play_cards: function(cards) {
+                    sock.send({ action: 'play_cards', cards: cards })
+                },
+                vote_cards: function(idx) {
+                    sock.send({ action: 'vote_cards', idx: idx })
+                }
+            };
 
-            var create_player = function(name, room_id) {
-                sock.send({'action': 'init_player', 'alias': name, 'room_id': room_id});
-            }
 
-            var start_room = function() {
-                sock.send({'action': 'start_room'});
-            }
+            // Room Send Actions
+            var room = {
+                create: function() {
+                    sock.send({'action': 'init_room'});
+                },
+                start: function() {
+                    sock.send({'action': 'start_room'});
+                },
+                get_state: function() {
+                    sock.send({'action': 'get_room_state'});
+                },
+            };
 
+            // Sock actions
             sock.onopen = function() {
                 console.log('open');
             };
             sock.onmessage = function(e) {
                 payload = JSON.parse(e.data);
                 actions = {
-                    'init_room': init_room,
-                    'init_player': init_player,
-                    'log': console.log,
+                    // Room callbacks
+                    'init_room': sock_response.room.init,
+                    'room_state': sock_response.room.update_state,
+
+                    // Player callbacks
+                    'init_player': sock_response.player.init,
+                    'update_hand': sock_response.player.update_hand,
+
+                    // Util Callbacks
+                    'log': sock_response.util.log,
+                    'error': sock_response.util.error,
                 }
+                console.log(payload);
                 if (payload.hasOwnProperty('action') && actions.hasOwnProperty(payload['action'])) {
-                    actions[payload['action']](payload);
+                    var response = actions[payload['action']](payload);
+                    if (response) {
+                        sock.send(response);
+                    }
                 } else {
                     console.log(payload);
                 }
@@ -55,8 +130,65 @@
             sock._send = sock.send;
 
             sock.send = function(payload) {
+                console.log(payload);
                 sock._send(JSON.stringify(payload));
             }
+
+            function JustCreateAGame() {
+                player.alias("Britt");
+                room.create();
+                player.join('1');
+                prompt("Start?");
+                room.start();
+            }
+
+            function JustJoinAGame() {
+                player.alias("Britt 2");
+                player.join('1');
+                room.start();
+            }
+
+        </script>
+
+        <script type="text/javascript" charset="utf-8">
+
+            var viewModel = function() {
+                var self = this;
+                // Player stuff
+                self.id = null;
+                self.alias = ko.observable();
+                self.hand = ko.observableArray([]);
+                self.points = ko.observable(0);
+
+                self.alias.subscribe(function(newAlias) {
+                    if (newAlias) {
+                        player.alias(newAlias);
+                    }
+                });
+
+                // All* Room state
+                // *Not actually all of the room state ;)
+                // Just the stuff that you should know about.
+                self.game = {
+                    id: null,
+                    judge_card: ko.observable(),
+                    players: ko.observableArray([]),
+                    hand: ko.observableArray([]),
+                };
+            }
+
+            var PlayerModel = function(id, room, alias, points) {
+                var self = this;
+                self.id = id;
+                self.room = room;
+                self.alias = alias;
+                self.points = ko.observable(points);
+            }
+
+
+            var ViewModel = new viewModel();
+
+            ko.applyBindings(ViewModel);
 
         </script>
     </body>
