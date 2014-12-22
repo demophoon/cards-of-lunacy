@@ -20,14 +20,28 @@ def render_cards(request):
 
 @view_config(route_name='render_rooms', renderer='json')
 def render_rooms(request):
-    return [{
-        'id': x.id,
-        'players': len(x.players),
-    } for x in Client.rooms]
+    rooms = []
+    for k, v in Client.rooms.items():
+        rooms.append(v.state())
+    return rooms
+
+
+@view_config(route_name='render_clients', renderer='json')
+def render_clients(request):
+    clients = [{
+        'id': x.player.id,
+        'alias': x.player.alias,
+        'room': x.player.room,
+    } for x in Client.clients]
+    for client in clients:
+        if client['room']:
+            client['room'] = client['room'].id
+    return clients
 
 
 def includeme(config):
     config.add_route('home', '/')
     config.add_route('render_cards', '/api/cards')
     config.add_route('render_rooms', '/api/rooms')
+    config.add_route('render_clients', '/api/clients')
     config.include('lunacy.websocket')

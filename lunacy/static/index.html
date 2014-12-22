@@ -3,26 +3,300 @@
     <head>
         <meta charset="UTF-8">
         <title>Starter Page</title>
+        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+        <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.2/jquery.min.js"></script>
+        <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.2.0/knockout-min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/sockjs-client/0.3.4/sockjs.min.js"></script>
     </head>
     <body>
 
-        <input data-bind='value: alias' />
-        <div>
-            Points: <span data-bind='text: points'></span>
+        <div class='container'>
+
+            <div class='page-header'>
+                <div class='pull-left'>
+                    <h1>Cards of Lunacy</h1>
+                </div>
+                <div class='pull-right'>
+                    <h5>Goto Lobby</h5>
+                </div>
+                <div class='clearfix'></div>
+            </div>
+
+            <div class='row' data-bind='visible: alias() == null'>
+
+                <div class='col-md-12'>
+                    <center>
+                        <h3>To get started please pick a name</h3>
+                        <div class='col-md-6 col-md-offset-3'>
+                            <input class='form-control' placeholder='Nickname' data-bind="value: alias" />
+                        </div>
+                    </center>
+                </div>
+
+            </div>
+
+            <div class='row' data-bind='visible: room_id() == null && alias'>
+                <div class='col-md-6'>
+                    <ul class='list-group'>
+
+                        <span data-bind="foreach: available_rooms">
+                            <li class='list-group-item'>
+                            <a href='#' class='list-group-item' data-bind='click: function(){player.join($data.id);}'>
+                                <h4 class='list-group-item-heading' data-bind="text: alias">Room Number two</h4>
+                                <p class='list-group-item-text'>
+                                <div class='pull-left'><span data-bind='text: players.length'></span>/12 people playing right now!</div>
+                                <div class='pull-right'>Join</div>
+                                <div class='clearfix'></div>
+                                </p>
+                            </a>
+                            </li>
+                        </span>
+
+                        <li class='list-group-item'>
+                        <a href='#' class='list-group-item' data-bind="click: room.create_and_join">
+                            <center><h4>Create a new room</h4></center>
+                        </a>
+                        </li>
+
+                    </ul>
+                </div>
+
+
+                <div class='col-md-6' data-bind='foreach: error_messages'>
+                    <div class='alert alert-danger'>
+                        <button type="button" class="close" data-bind="click: function() {
+                                $root.error_messages.splice($root.error_messages.indexOf($data), 1);
+                            }">
+                            <span aria-hidden="true">&times;</span><span class="sr-only">Close</span>
+                        </button>
+                        <span data-bind='text: $data'></span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class='row' data-bind="visible: room_id">
+
+                <style type='text/css'>
+                    body {
+                        overflow-y: hidden;
+                    }
+                    .hide-overflow {
+                        //overflow: hidden;
+                    }
+                    .black {
+                        color: #eee;
+                        background: #111 !important;
+                    }
+                    .card {
+                        display: inline-block;
+                        margin: auto;
+                        padding: 15px;
+                        border: 1px solid #aaa;
+                        background: #eee;
+                        width: 200px;
+                        min-height: 225px;
+                        font-weight: bold;
+                        text-align: left;
+
+                        -webkit-border-radius: 10px;
+                        -moz-border-radius: 10px;
+                        box-shadow:  0px 0px 2px 1px rgba(0, 0, 0, .5);
+                        -webkit-font-smoothing:subpixel-antialiased;
+                        border-radius: 10px;
+                        -webkit-animation: cardFall .5s;
+                        -webkit-animation-timing-function: ease-in;
+                        overflow:none;
+                    }
+                    .card.back {
+                        content: 'Cards Against Humanity';
+                        font-size: 36px;
+                    }
+                    .clearfix-card {
+                        height: 265px;
+                        width: 240px;
+                    }
+
+                    @-webkit-keyframes cardFall {
+                        from {
+                            margin-top: 250px;
+                            opacity:.15;
+                            -webkit-transform: scale(1.5,1.5) translate(25px,50px) rotate(-15deg);
+                            box-shadow:  0px 0px 20px 50px rgba(0, 0, 0, .5);
+                        }
+                        to {
+                            opacity:1;
+                        }
+                    }
+
+                    .card-selector {
+                        width: 100%;
+                    }
+
+                    .card-selector input {
+                        display: none;
+                    }
+
+                    .card-selector li {
+                        display: inline-block;
+                    }
+
+                    .submit-button {
+                        position:relative;
+                        top:-155px;
+                    }
+                    .chat {
+                        font-size: 12px;
+                        max-height: 175px;
+                        overflow-y: hidden, scroll;
+                    }
+                    .chat .message .sender {
+                        font-weight: bold;
+                    }
+                    .chat .message .sender::after {
+                        content: ': ';
+                    }
+
+                    .chat .message .sender.error {
+                        color: #a94442;
+                    }
+                    .chat .message .body.error {
+                        font-weight: bold;
+                    }
+
+                </style>
+
+                <div class='col-md-4 hide-overflow'>
+
+                    <center>
+                        <span class="black card" data-bind="html: display_judge_card"></span>
+                    </center>
+
+                    <div class='center-block'>
+                        <div data-bind="foreach: game.hand">
+                            <span class="card back" data-bind="style: $root.randomCardStyle()">
+                                Cards<br>
+                                Of<br>
+                                Lunacy
+                            </span>
+                        </div>
+
+                        <div class='clearfix-card' data-bind="foreach: selected_hand, visible: !played()">
+                            <span class="card" data-bind="text: $data, style: $root.randomCardStyle()"></span>
+                        </div>
+                    </div>
+
+                    <center>
+                        <input type='button' class='btn btn-lg btn-success submit-button' data-bind='visible: selected_hand().length >= word_count() && !played(), click: $root.submit_cards' value='Throw cards into pile' />
+                    </center>
+
+                </div>
+
+                <div class='col-md-5'>
+
+                    <div data-bind="visible: !played()">
+                        <center>
+                            <h3>Your Hand</h3>
+                        </center>
+                        <ul class='list-group' data-bind='foreach: hand'>
+                            <li class='list-group-item' style='font-weight: bold' data-bind='css: {
+                            disabled: $root.selected_hand().length >= $root.word_count() && $root.selected_hand().indexOf($data) < 0,
+                            "list-group-item-success": $root.selected_hand().indexOf($data) >= 0,
+                            }'>
+                            <label class='card-selector'>
+                                <input type='checkbox' data-bind="checked: $root.selected_hand, value: $data, enable: $root.selected_hand().length < $root.word_count() || $root.selected_hand().indexOf($data) >= 0" />
+                                <span data-bind='text: $data'></span>
+                            </label>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div data-bind="visible: played">
+                        <center>
+                            <h3>Vote for a winner</h3>
+                        </center>
+                        <ul class='list-group' data-bind='foreach: display_vote_cards'>
+                            <li class='list-group-item' style='font-weight: bold' data-bind='click: function() {$root.vote_for_cards($data.cards)}, css: { disabled: $root.voted() }'>
+                                <span data-bind='html: $root.format_card($root.game.judge_card(), $data.cards)'></span>
+                            </li>
+                        </ul>
+                    </div>
+
+                </div>
+
+                <div class='col-md-3'>
+
+                    <div class='row'>
+                        <table cellspacing='0' class='table table-condensed'>
+                            <thead>
+                                <tr>
+                                    <th>Nickname</th>
+                                    <th>Points</th>
+                                </tr>
+                            </thead>
+                            <tbody data-bind='foreach: game.players'>
+                                <tr>
+                                    <td data-bind='text: alias'></td>
+                                    <td data-bind='text: points'></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class='row'>
+                        <div class='well well-sm'>
+                            <div class='chat' data-bind='foreach: chat_messages, scrollTo: chat_messages'>
+                                <div class='message'>
+                                    <span class='sender' data-bind='css: $data.message_type, text: sender'></span>
+                                    <span class='body' data-bind='css: $data.message_type, text: body'></span>
+                                </div>
+                            </div>
+                            <div class='input-group'>
+                                <input data-bind='value: chat_message' class='form-control input-sm' placeholder='Type a message into chat' />
+                                <span class='input-group-btn'>
+                                    <input type='button' data-bind='click: send_message' class='button btn btn-sm btn-default' value='Send' />
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        Players:
+                        <span data-bind='foreach: game.players'>
+                            <span data-bind='text: alias'></span> (<span data-bind='text: points'></span> points)<br>
+                        </span>
+                    </div>
+
+                    <input data-bind='value: alias' />
+                    <div>
+                        Points: <span data-bind='text: points'></span>
+                    </div>
+
+                    <div data-bind='html: display_judge_card'></div>
+                    <div>
+                        <input type='button' class='button' value='Submit Cards' data-bind='enable: $root.selected_hand().length >= $root.word_count(), click: $root.submit_cards' />
+                    </div>
+
+                    <table border="0" cellspacing="5" cellpadding="5">
+                        <thead>
+                            <tr><th>Cards</th></tr>
+                        </thead>
+                        <tbody data-bind="foreach: hand">
+                            <tr><td>
+                                <span data-bind="text: $data"></span>
+                                <input type='checkbox' data-bind="checked: $root.selected_hand, value: $data, enable: $root.selected_hand().length < $root.word_count() || $root.selected_hand().indexOf($data) >= 0" />
+                            </td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
         </div>
-        <table border="0" cellspacing="5" cellpadding="5">
-            <thead>
-                <tr><th>Cards</th></tr>
-            </thead>
-            <tbody data-bind="foreach: hand">
-                <tr><td data-bind="text: $data"></td></tr>
-            </tbody>
-        </table>
 
 
-        <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.2/jquery.min.js"></script>
-        <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.2.0/knockout-min.js"></script>
-        <script type="text/javascript" charset="utf-8" src="//cdnjs.cloudflare.com/ajax/libs/sockjs-client/0.3.4/sockjs.min.js"></script>
+
 
         <script type="text/javascript" charset="utf-8">
 
@@ -31,8 +305,23 @@
             // Response functions
             var sock_response = {
                 room: {
+                    auto_join: false,
+                    auto_start: false,
                     init: function(options) {
-                        ViewModel.room_id = options['id']
+                        if (sock_response.room.auto_join) {
+                            player.join(options['id']);
+                        }
+                    },
+                    connect: function(options) {
+                        ViewModel.room_id(options['id']);
+                        if (sock_response.room.auto_start) {
+                            room.start();
+                        }
+                    },
+                    start_round: function(options) {
+                        ViewModel.played(false);
+                        ViewModel.voted(false);
+                        ViewModel.selected_hand([]);
                     },
                     update_state: function(options) {
                         console.log("Room state updated");
@@ -41,6 +330,9 @@
                         ViewModel.game.judge_card(state.judge_card);
                         ViewModel.game.hand(state.hand);
                         ViewModel.game.players(state.players);
+                    },
+                    update_list: function(options) {
+                        ViewModel.available_rooms(options.rooms);
                     }
                 },
                 player: {
@@ -55,7 +347,16 @@
                         console.log(options.message);
                     },
                     error: function(options) {
+                        ViewModel.error_messages.push(options.message);
+                        ViewModel.chat_messages.push({
+                            'sender': 'System',
+                            'body': options.message,
+                            'message_type': {'error': true},
+                        });
                         console.error(options.message);
+                    },
+                    new_message: function(options) {
+                        ViewModel.chat_messages.push(options);
                     }
                 },
             };
@@ -64,7 +365,7 @@
             // Player Send Actions
             var player = {
                 alias: function(name) {
-                    sock.send({ action: 'set_alias', alias: name });
+                    sock.send({ action: 'set_player_alias', alias: name });
                 },
                 join: function(room_id) {
                     sock.send({ action: 'join_room', room_id: room_id });
@@ -75,9 +376,14 @@
                 play_cards: function(cards) {
                     sock.send({ action: 'play_cards', cards: cards })
                 },
-                vote_cards: function(idx) {
-                    sock.send({ action: 'vote_cards', idx: idx })
-                }
+                vote_cards: function(cards) {
+                    sock.send({ action: 'vote_cards', cards: cards })
+                },
+                send_message: function(msg) {
+                    if (msg) {
+                        sock.send({ action: 'send_message', body: msg });
+                    }
+                },
             };
 
 
@@ -86,24 +392,45 @@
                 create: function() {
                     sock.send({'action': 'init_room'});
                 },
+                create_and_join: function() {
+                    sock_response.room.auto_join = true;
+                    sock_response.room.auto_start = true;
+                    sock.send({'action': 'init_room'});
+                },
+                alias: function(name) {
+                    sock.send({'action': 'set_room_alias', alias: name});
+                },
                 start: function() {
                     sock.send({'action': 'start_room'});
                 },
                 get_state: function() {
                     sock.send({'action': 'get_room_state'});
                 },
+                get_list: function() {
+                    sock.send({'action': 'get_room_list'});
+                }
             };
 
             // Sock actions
             sock.onopen = function() {
                 console.log('open');
+                if (sock.queue.length > 0) {
+                    for (var x=0; x<sock.queue.length; x+=1) {
+                        var payload = sock.queue.shift();
+                        setTimeout(function() {sock.send(payload)}, 50 * x);
+                    }
+                }
+                sock.send({action: 'get_room_list'});
             };
             sock.onmessage = function(e) {
                 payload = JSON.parse(e.data);
                 actions = {
                     // Room callbacks
                     'init_room': sock_response.room.init,
+                    'connect_room': sock_response.room.connect,
                     'room_state': sock_response.room.update_state,
+                    'start_round': sock_response.room.start_round,
+                    'update_room_list': sock_response.room.update_list,
 
                     // Player callbacks
                     'init_player': sock_response.player.init,
@@ -112,6 +439,7 @@
                     // Util Callbacks
                     'log': sock_response.util.log,
                     'error': sock_response.util.error,
+                    'new_message': sock_response.util.new_message,
                 }
                 console.log(payload);
                 if (payload.hasOwnProperty('action') && actions.hasOwnProperty(payload['action'])) {
@@ -119,8 +447,6 @@
                     if (response) {
                         sock.send(response);
                     }
-                } else {
-                    console.log(payload);
                 }
             };
             sock.onclose = function() {
@@ -129,7 +455,15 @@
 
             sock._send = sock.send;
 
+            sock.queue = [];
             sock.send = function(payload) {
+                if (sock.readyState != 1) {
+                    sock.queue.push(payload);
+                    return;
+                }
+                if (sock.queue.length > 0) {
+                    setTimeout(function() {sock.send(payload)}, 50);
+                }
                 console.log(payload);
                 sock._send(JSON.stringify(payload));
             }
@@ -152,17 +486,53 @@
 
         <script type="text/javascript" charset="utf-8">
 
+            ko.bindingHandlers.scrollTo = {
+                update: function(element, valueAccessor) {
+                    var value = ko.utils.unwrapObservable(valueAccessor());
+                    if (value) {
+                        var scrollParent = $(element).closest("div");
+                        var newTop = $(element).position().top + scrollParent.scrollTop();
+                        scrollParent.scrollTop(newTop);
+                    }
+                }
+            };
+
             var viewModel = function() {
                 var self = this;
+
+                self.randomCardStyle = function() {
+                    return {
+                        position: 'absolute',
+                        "webkitTransform": "rotate(" + (30 - (Math.random() * 60)) + "deg)",
+                        "marginTop": (20 - (Math.random() * 40)) + "px",
+                        "marginLeft": (20 - (Math.random() * 40)) + "px",
+                    }
+                }
+
+                // Games' state
+                self.available_rooms = ko.observableArray([]);
+                self.room_id = ko.observable();
+                self.error_messages = ko.observableArray([]);
+                self.chat_messages = ko.observableArray([]);
+                self.chat_message = ko.observable();
+
                 // Player stuff
                 self.id = null;
-                self.alias = ko.observable();
-                self.hand = ko.observableArray([]);
+                self.played = ko.observable(false);
+                self.voted = ko.observable(false);
+                self.alias = ko.observable(localStorage.alias);
+                if (self.alias()) {
+                    player.alias(self.alias());
+                }
                 self.points = ko.observable(0);
+
+                self.hand = ko.observableArray([]);
+                self.selected_hand = ko.observableArray([]);
 
                 self.alias.subscribe(function(newAlias) {
                     if (newAlias) {
                         player.alias(newAlias);
+                        localStorage.alias = newAlias;
                     }
                 });
 
@@ -175,6 +545,65 @@
                     players: ko.observableArray([]),
                     hand: ko.observableArray([]),
                 };
+
+                // ViewModel Helpers
+                self.send_message = function() {
+                    player.send_message(self.chat_message());
+                    self.chat_message(null);
+                }
+                self.vote_for_cards = function(cards) {
+                    if (!self.voted()) {
+                        console.log(cards);
+                        player.vote_cards(cards);
+                        self.voted(true);
+                    }
+                }
+                self.submit_cards = function() {
+                    self.played(true);
+                    player.play_cards(self.selected_hand());
+                }
+                self.word_count = ko.computed(function() {
+                    var judge_card = self.game.judge_card();
+                    if (judge_card) {
+                        return Math.max(1, (judge_card.match(/_/g)||[]).length);
+                    } else {
+                        return null;
+                    }
+                });
+                self.format_card2 = function(judge_card, cards) {
+                    debugger;
+                }
+                self.format_card = function(judge_card, cards) {
+                    var display_text = judge_card;
+                    var wc = (display_text.match(/_/g)||[]).length;
+                    if (wc == 0) {
+                        display_text += " _."
+                        wc = 1;
+                    }
+                    for (var x=0; x<wc; x+=1) {
+                        var selected_word = cards[x];
+                        if (selected_word) {
+                            selected_word = "<u>" + selected_word + "</u>";
+                            display_text = display_text.replace("_", selected_word);
+                        }
+                    }
+                    display_text = display_text.replace(/_/g, '_______________');
+                    return display_text;
+                }
+                self.display_judge_card = ko.computed(function() {
+                    var judge_card = self.game.judge_card();
+                    if (!judge_card) {
+                        return "";
+                    }
+                    return self.format_card(judge_card, self.selected_hand());
+                });
+                self.display_vote_cards = ko.computed(function() {
+                    return ko.utils.arrayFilter(self.game.hand(), function(item) {
+                        var arr1 = self.selected_hand();
+                        var arr2 = item.cards;
+                        return !($(arr1).not(arr2).length == 0 && $(arr2).not(arr1).length == 0);
+                    });
+                });
             }
 
             var PlayerModel = function(id, room, alias, points) {
