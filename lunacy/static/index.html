@@ -15,10 +15,10 @@
 
             <div class='page-header'>
                 <div class='pull-left'>
-                    <h1>Cards of Lunacy</h1>
+                    <h1>Cards of Lunacy <small>BETA</small></h1>
                 </div>
                 <div class='pull-right'>
-                    <h5>Goto Lobby</h5>
+                    <a href="http://www.cardsagainsthumanity.com">Based off of <u>Cards Against Humanity(tm)</u></a>
                 </div>
                 <div class='clearfix'></div>
             </div>
@@ -63,14 +63,22 @@
                 </div>
 
 
-                <div class='col-md-6' data-bind='foreach: error_messages'>
-                    <div class='alert alert-danger'>
-                        <button type="button" class="close" data-bind="click: function() {
-                                $root.error_messages.splice($root.error_messages.indexOf($data), 1);
-                            }">
-                            <span aria-hidden="true">&times;</span><span class="sr-only">Close</span>
-                        </button>
-                        <span data-bind='text: $data'></span>
+                <div class='col-md-6' >
+                    <div class='row'>
+                        <p>
+                        Note that this game is in beta, There will be broken and missing functionality. Don't Panic, I will fix it when I get time to.<br>
+                        If you'd like to help out submit a pull request over on <a href="https://github.com/demophoon/cards-of-lunacy">Github</a>.
+                        </p>
+                    </div>
+                    <div class='row' data-bind='foreach: error_messages'>
+                        <div class='alert alert-danger'>
+                            <button type="button" class="close" data-bind="click: function() {
+                                    $root.error_messages.splice($root.error_messages.indexOf($data), 1);
+                                }">
+                                <span aria-hidden="true">&times;</span><span class="sr-only">Close</span>
+                            </button>
+                            <span data-bind='text: $data'></span>
+                        </div>
                     </div>
                 </div>
 
@@ -158,6 +166,9 @@
                         content: ': ';
                     }
 
+                    .chat .message .sender.room {
+                        color: #31708f;
+                    }
                     .chat .message .sender.error {
                         color: #a94442;
                     }
@@ -174,7 +185,7 @@
                     </center>
 
                     <div class='center-block'>
-                        <div data-bind="foreach: game.hand">
+                        <div data-bind="foreach: discard_pile">
                             <span class="card back" data-bind="style: $root.randomCardStyle()">
                                 Cards<br>
                                 Of<br>
@@ -188,7 +199,7 @@
                     </div>
 
                     <center>
-                        <input type='button' class='btn btn-lg btn-success submit-button' data-bind='visible: selected_hand().length >= word_count() && !played(), click: $root.submit_cards' value='Throw cards into pile' />
+                        <input type='button' class='btn btn-lg btn-success submit-button' data-bind='visible: selected_hand().length >= word_count() && !played() && game.judge_card, click: $root.submit_cards' value='Throw cards into pile' />
                     </center>
 
                 </div>
@@ -252,15 +263,18 @@
                                     <span class='body' data-bind='css: $data.message_type, text: body'></span>
                                 </div>
                             </div>
-                            <div class='input-group'>
-                                <input data-bind='value: chat_message' class='form-control input-sm' placeholder='Type a message into chat' />
-                                <span class='input-group-btn'>
-                                    <input type='button' data-bind='click: send_message' class='button btn btn-sm btn-default' value='Send' />
-                                </span>
-                            </div>
+                            <form data-bind='submit: send_message'>
+                                <div class='input-group'>
+                                    <input data-bind='value: chat_message' class='form-control input-sm' placeholder='Type a message into chat' />
+                                    <span class='input-group-btn'>
+                                        <input type='submit' data-bind='click: send_message' class='button btn btn-sm btn-default' value='Send' />
+                                    </span>
+                                </div>
+                            </form>
                         </div>
                     </div>
 
+                    <!--
                     <div>
                         Players:
                         <span data-bind='foreach: game.players'>
@@ -290,6 +304,7 @@
                         </tbody>
                     </table>
                 </div>
+                -->
 
             </div>
 
@@ -318,10 +333,18 @@
                             room.start();
                         }
                     },
+                    countdown: function(options) {
+                        ViewModel.chat_messages.push({
+                            'sender': 'Room',
+                            'body': options.message,
+                            'message_type': {'room': true},
+                        });
+                    },
                     start_round: function(options) {
                         ViewModel.played(false);
                         ViewModel.voted(false);
                         ViewModel.selected_hand([]);
+                        ViewModel.discard_pile([]);
                     },
                     update_state: function(options) {
                         console.log("Room state updated");
@@ -330,6 +353,14 @@
                         ViewModel.game.judge_card(state.judge_card);
                         ViewModel.game.hand(state.hand);
                         ViewModel.game.players(state.players);
+                        var final_count = 0;
+                        for (var x=0; x<ViewModel.game.hand().length; x+=1) {
+                            final_count += ViewModel.game.hand()[x].cards.length;
+                        }
+                        console.log(final_count);
+                        for (var x=ViewModel.discard_pile().length; x<final_count; x+=1) {
+                            setTimeout(function() {ViewModel.discard_pile.push(Math.random())}, Math.random() * 350);
+                        }
                     },
                     update_list: function(options) {
                         ViewModel.available_rooms(options.rooms);
@@ -394,7 +425,7 @@
                 },
                 create_and_join: function() {
                     sock_response.room.auto_join = true;
-                    sock_response.room.auto_start = true;
+                    sock_response.room.auto_start = false;
                     sock.send({'action': 'init_room'});
                 },
                 alias: function(name) {
@@ -431,6 +462,7 @@
                     'room_state': sock_response.room.update_state,
                     'start_round': sock_response.room.start_round,
                     'update_room_list': sock_response.room.update_list,
+                    'countdown': sock_response.room.countdown,
 
                     // Player callbacks
                     'init_player': sock_response.player.init,
@@ -512,6 +544,9 @@
                 // Games' state
                 self.available_rooms = ko.observableArray([]);
                 self.room_id = ko.observable();
+                self.discard_pile = ko.observableArray([]);
+
+
                 self.error_messages = ko.observableArray([]);
                 self.chat_messages = ko.observableArray([]);
                 self.chat_message = ko.observable();

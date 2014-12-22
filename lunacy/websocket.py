@@ -112,13 +112,17 @@ class Room(object):
         self.inactivity_timer.cancel()
         if len(self.players) >= self.MAX_PLAYERS:
             raise JoinError("No more open slots")
+        self.send_message_to_room("Player '%s' has joined." % player.alias)
         player.room = self
         self.players.append(player)
+        if len(self.players) >= self.MIN_PLAYERS:
+            self.start()
         self.send_state_to_players()
 
     def part(self, player):
         self.players.remove(player)
         self.send_state_to_players()
+        self.send_message_to_room("Player '%s' has left." % player.alias)
         if len(self.players) == 0:
             print "Room %s has been removed due to inactivity" % self.id
             self.remove_room()
@@ -136,6 +140,9 @@ class Room(object):
                     self.MIN_PLAYERS,
                 )
             )
+        self.broadcast_to_room({
+            'action': 'start_round',
+        })
         self.current_select_deck = self.card_generator()
         for player in self.players:
             player.hand([])
@@ -152,7 +159,16 @@ class Room(object):
 
     def end_round(self):
         winners = sorted(self.hand, key=lambda x: len(x['votes']), reverse=True)
-        winners[0]['player'].points += 10
+        if winners[0]['votes'] > 0:
+            winners[0]['player'].points += 10
+            self.send_message_to_room(
+                '%s has won the round with %s! New round starting...' % (
+                    winners[0]['player'].alias,
+                    ', '.join(winners[0]['cards']),
+                )
+            )
+            self.tmp = threading.Timer(5.0, self.start)
+            self.tmp.start()
         for winner in winners[1:]:
             winner['player'].points += len(winner['votes'])
         self.send_state_to_players()
@@ -218,7 +234,8 @@ class Room(object):
         vote_count = sum([len(x['votes']) for x in self.hand])
         if vote_count == 0:
             self.next_round_timer = threading.Timer(30.0, self.end_round)
-            player.websocket.broadcast_to_room({
+            self.next_round_timer.start()
+            self.broadcast_to_room({
                 'action': 'countdown',
                 'time': 30,
                 'message': '30 seconds left to vote.',
@@ -232,7 +249,25 @@ class Room(object):
         if any([player in x['votes'] for x in self.hand]):
             raise PlayError("Player has already voted")
         vote['votes'].append(player)
+        vote_count = sum([len(x['votes']) for x in self.hand])
+        if vote_count == self.current_round_player_count:
+            self.next_round_timer.cancel()
+            self.end_round()
         self.send_state_to_players()
+
+    def send_message_to_room(self, message):
+        self.broadcast_to_room({
+            'action': 'new_message',
+            'sender': 'Room',
+            'body': message,
+            'message_type': {
+                'room': True,
+            },
+        })
+
+    def broadcast_to_room(self, payload):
+        for player in self.players:
+            player.websocket.reply(payload)
 
     def send_state_to_players(self):
         for player in self.players:
@@ -419,9 +454,6 @@ class Client(Session):
             self.error("You do not have access to this command")
             return
         self.player.room.start()
-        self.broadcast_to_room({
-            'action': 'start_round',
-        })
 
     def play_cards(self, **kwargs):
         if not all([x in kwargs for x in [
