@@ -1,4 +1,3 @@
-import time
 import threading
 import json
 import random
@@ -35,7 +34,7 @@ class PermissionError(Exception):
 
     def __str__(self):
         msg = "You do not have the required permissions for this action"
-        return "Argument Error: %s" % msg
+        return "Permission Error: %s" % msg
 
 
 class JoinError(Exception):
@@ -53,7 +52,7 @@ class Room(object):
     """ Creates a room for CAH.  Contains player information and game state.
     """
 
-    MAX_PLAYERS = 8
+    MAX_PLAYERS = 16
     MIN_PLAYERS = 2
 
     def __init__(self, owner=None, deck=None):
@@ -115,7 +114,7 @@ class Room(object):
         self.send_message_to_room("Player '%s' has joined." % player.alias)
         player.room = self
         self.players.append(player)
-        if len(self.players) >= self.MIN_PLAYERS:
+        if len(self.players) >= self.MIN_PLAYERS and not self.judge_card:
             self.start()
         self.send_state_to_players()
 
