@@ -5,6 +5,7 @@ import random
 import shortuuid
 
 from pyramid_sockjs.session import Session
+import lunacy.decks as decks
 
 
 # Custom Exceptions
@@ -60,7 +61,7 @@ class Room(object):
         self.alias = None
         self.owner = owner
         if not deck:
-            deck = json.loads(open('./lunacy/cards.json', 'r').read())
+            deck = decks.default
         self.judge_deck = deck['black']
         self.select_deck = deck['white']
 

@@ -2,11 +2,7 @@ from pyramid.view import view_config
 from pyramid.httpexceptions import HTTPFound
 
 from websocket import Client
-
-cards = {
-    'white': [],
-    'black': [],
-}
+import lunacy.decks as decks
 
 
 @view_config(route_name='home', renderer='templates/mytemplate.pt')
@@ -17,7 +13,7 @@ def my_view(request):
 
 @view_config(route_name='render_cards', renderer='json')
 def render_cards(request):
-    return cards
+    return decks.default
 
 
 @view_config(route_name='render_rooms', renderer='json')

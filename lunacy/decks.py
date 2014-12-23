@@ -1,4 +1,7 @@
-{
+#!/usr/bin/env python
+# encoding: utf-8
+
+default = {
     "black": [
         "_ ain't nothin' to fuck with.",
         "I live my life according to the teachings of _.",
