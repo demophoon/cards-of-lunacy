@@ -43,7 +43,7 @@ def main():
     play_cards(players[1])
     play_cards(players[2])
 
-    import pprint;
+    import pprint
     print "Room State:"
     pprint.pprint(room.state(True))
 
